@@ -17,6 +17,8 @@ const LineChart: React.FC<LineChartProps> = ({
   legendBackgroundColor = "white",
   legendTextColor = "black",
   dataLineColors = ["#0074D9", "#FF4136", "#2ECC40", "#FF851B", "#7FDBFF"],
+  showHorizontalGridLines = true,
+  horizontalGridLineColor = "#e0e0e0",
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 400 });
@@ -44,20 +46,34 @@ const LineChart: React.FC<LineChartProps> = ({
 
   const controls = useAnimation();
 
+  // Modify dataSeries to include labelComponent
+  interface DataSeries {
+    data: number[];
+    label?: string;
+    labelComponent?: React.ReactNode;
+    labelPosition?: string;
+    labelBackgroundColor?: string;
+    animationDuration?: number;
+    title?: string;
+  }
+
+  // Update the type of dataSeries
+  const updatedDataSeries = dataSeries as DataSeries[];
+
   // Generate the path data and find overall yMax
   const { pathDataArray, yMax } = useMemo(() => {
-    if (!dataSeries || dataSeries.length === 0)
+    if (!updatedDataSeries || updatedDataSeries.length === 0)
       return { pathDataArray: [], yMax: 0 };
 
-    const xStep = width / (dataSeries[0].data.length - 1);
+    const xStep = width / (updatedDataSeries[0].data.length - 1);
     const yMax = Math.max(
-      ...dataSeries.flatMap((series) =>
+      ...updatedDataSeries.flatMap((series) =>
         series.data.filter((value) => !skipZeroes || value !== 0)
       )
     );
     const yScale = height / yMax;
 
-    const pathDataArray = dataSeries.map((series, index) => {
+    const pathDataArray = updatedDataSeries.map((series, index) => {
       const points = series.data
         .map((value, index) => ({
           x: index * xStep,
@@ -89,7 +105,7 @@ const LineChart: React.FC<LineChartProps> = ({
     });
 
     return { pathDataArray, yMax };
-  }, [dataSeries, width, height, curved, skipZeroes, dataLineColors]);
+  }, [updatedDataSeries, width, height, curved, skipZeroes, dataLineColors]);
 
   // Generate y-axis ticks
   const yAxisTicks = useMemo(() => {
@@ -103,7 +119,7 @@ const LineChart: React.FC<LineChartProps> = ({
 
   const pathRefs = useRef([]);
   const [animationProgress, setAnimationProgress] = useState(
-    Array(dataSeries.length).fill(0),
+    Array(updatedDataSeries.length).fill(0),
   );
 
   const getPointAtLength = (path, length) => {
@@ -146,11 +162,23 @@ const LineChart: React.FC<LineChartProps> = ({
             <text x="-10" y={y} dy="0.32em" textAnchor="end" fontSize="12" fill={axisColor}>
               {value}
             </text>
+
+            {/* Render horizontal grid lines if the prop is true */}
+            {showHorizontalGridLines && (
+              <line
+                x1="0"
+                y1={y}
+                x2={width}
+                y2={y}
+                stroke={horizontalGridLineColor}
+                strokeDasharray="5,5" // Optional: makes the grid lines dashed
+              />
+            )}
           </g>
         ))}
       </>
     );
-  }, [height, width, axisColor, yAxisTicks]);
+  }, [height, width, axisColor, yAxisTicks, showHorizontalGridLines, horizontalGridLineColor]);
 
   const [labelDimensions, setLabelDimensions] = useState<{ [key: number]: { width: number, height: number } }>({});
 
@@ -240,7 +268,7 @@ const LineChart: React.FC<LineChartProps> = ({
                   d={series.pathData}
                   fill="none"
                   stroke={series.color}
-                  strokeWidth="2"
+                  strokeWidth="3"
                   initial={{ pathLength: 0 }}
                   animate={controls}
                   variants={{
@@ -329,16 +357,33 @@ const LineChart: React.FC<LineChartProps> = ({
                                 ry="4"
                                 fill={series.labelBackgroundColor || labelBackgroundColor}
                               />
-                              <text
-                                x="0"
-                                y="0"
-                                dy="0.35em"
-                                textAnchor="middle"
-                                fontSize="12"
-                                fill={labelColor}
-                              >
-                                {series.label}
-                              </text>
+                              {/* Render the labelComponent if provided */}
+                              {series.labelComponent ? (
+                                <foreignObject
+                                  x={-boxWidth / 2 + padding}
+                                  y={-boxHeight / 2 + padding}
+                                  width={boxWidth - padding * 1.5}
+                                  height={boxHeight - padding * 1.5}
+                                >
+                                  <div
+                                    xmlns="http://www.w3.org/1999/xhtml"
+                                    style={{ textAlign: 'center' }}
+                                  >
+                                    {series.labelComponent}
+                                  </div>
+                                </foreignObject>
+                              ) : (
+                                <text
+                                  x="0"
+                                  y="0"
+                                  dy="0.35em"
+                                  textAnchor="middle"
+                                  fontSize="12"
+                                  fill={labelColor}
+                                >
+                                  {series.label}
+                                </text>
+                              )}
                             </g>
                           </>
                         );

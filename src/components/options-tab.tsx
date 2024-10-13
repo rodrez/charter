@@ -9,8 +9,12 @@ interface OptionsTabProps {
   delay: number;
   curved: boolean;
   skipZeroes: boolean;
+  showHorizontalGridLines: boolean;
+  horizontalGridLineColor: string;
   setShowLegend: (show: boolean) => void;
   setSkipZeroes: (skip: boolean) => void;
+  setShowHorizontalGridLines: (show: boolean) => void;
+  setHorizontalGridLineColor: (color: string) => void;
   setStaggered: (staggered: boolean) => void;
   setDelay: (delay: number) => void;
   setCurved: (curved: boolean) => void;
@@ -22,8 +26,12 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
   delay,
   curved,
   skipZeroes,
+  showHorizontalGridLines,
+  horizontalGridLineColor,
   setShowLegend,
   setSkipZeroes,
+  setShowHorizontalGridLines,
+  setHorizontalGridLineColor,
   setStaggered,
   setDelay,
   setCurved,
@@ -54,6 +62,7 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
         />
         <Label htmlFor="curved">Curved Lines</Label>
       </div>
+
       <div className="flex items-center space-x-2">
         <Switch
           id="staggered"
@@ -65,6 +74,25 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
       <div className="flex items-center space-x-2">
         <Label htmlFor="delay">Delay</Label>
         <Input type="number" id="delay" value={delay} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDelay(Number(e.target.value))} />
+      </div>
+      <div className="flex items-center space-x-2">
+        <Switch
+          id="show-horizontal-grid-lines"
+          checked={showHorizontalGridLines}
+          onCheckedChange={setShowHorizontalGridLines}
+        />
+        <Label htmlFor="show-horizontal-grid-lines">Show Horizontal Grid Lines</Label>
+      </div>
+      <div className="flex items-center space-x-2">
+        <Label htmlFor="horizontal-grid-line-color">Horizontal Grid Line Color</Label>
+        <Input
+          type="color"
+          id="horizontal-grid-line-color"
+          value={horizontalGridLineColor}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            setHorizontalGridLineColor(e.target.value)
+          }
+        />
       </div>
     </div>
   );

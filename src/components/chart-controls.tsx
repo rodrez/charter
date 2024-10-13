@@ -34,6 +34,10 @@ interface ChartControlsProps {
   setStaggered: (staggered: boolean) => void;
   setDelay: (delay: number) => void;
   setCurved: (curved: boolean) => void;
+  showHorizontalGridLines: boolean;
+  setShowHorizontalGridLines: (show: boolean) => void;
+  horizontalGridLineColor: string;
+  setHorizontalGridLineColor: (color: string) => void;
 }
 
 const ChartControls: React.FC<ChartControlsProps> = ({
@@ -64,6 +68,10 @@ const ChartControls: React.FC<ChartControlsProps> = ({
   setStaggered,
   setDelay,
   setCurved,
+  showHorizontalGridLines,
+  setShowHorizontalGridLines,
+  horizontalGridLineColor,
+  setHorizontalGridLineColor,
 }) => {
   return (
     <Card className="mb-8" style={{ backgroundColor: chartBackgroundColor }}>
@@ -109,11 +117,15 @@ const ChartControls: React.FC<ChartControlsProps> = ({
               delay={delay}
               curved={curved}
               skipZeroes={skipZeroes}
+              showHorizontalGridLines={showHorizontalGridLines}
+              horizontalGridLineColor={horizontalGridLineColor}
               setShowLegend={setShowLegend}
               setSkipZeroes={setSkipZeroes}
               setStaggered={setStaggered}
               setDelay={setDelay}
               setCurved={setCurved}
+              setShowHorizontalGridLines={setShowHorizontalGridLines}
+              setHorizontalGridLineColor={setHorizontalGridLineColor}
             />
           </TabsContent>
         </Tabs>

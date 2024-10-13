@@ -5,6 +5,26 @@ import Papa from "papaparse";
 import ChartControls from "@/components/chart-controls";
 import type { DataSeries } from "@/lib/types/line-chart";
 import LineChart from "@/components/line-chart/line-chart";
+import Image from "next/image";
+
+
+// Custom component that renders an image
+const ImageLabelComponent = ({ src }: { src: string }) => (
+  <div
+    className="relative overflow-hidden"
+  >
+    <Image
+      src={src}
+      alt="Label"
+      width={250}
+      height={250}
+      style={{ objectFit: 'cover' }}
+      className="w-full h-full "
+    />
+  </div>
+);
+
+
 
 export default function TestPage() {
   const [data, setData] = useState<DataSeries[]>([]);
@@ -15,12 +35,15 @@ export default function TestPage() {
   const [labelBackgroundColor, setLabelBackgroundColor] = useState("rgba(255, 255, 255, 0.7)");
   const [legendBackgroundColor, setLegendBackgroundColor] = useState("#ffffff");
   const [legendTextColor, setLegendTextColor] = useState("#000000");
-  const [dataLineColors, setDataLineColors] = useState(["#0074D9", "#FF4136", "#2ECC40", "#FF851B", "#7FDBFF", "#B10DC9"]);
+  const [dataLineColors, setDataLineColors] = useState(["#FFD700", "#FF4500", "#C0C0C0", "#1E90FF", "#104E8B", "#3CB371"]);
   const [showLegend, setShowLegend] = useState(true);
   const [skipZeroes, setSkipZeroes] = useState(false);
   const [staggered, setStaggered] = useState(true);
   const [delay, setDelay] = useState(1);
   const [curved, setCurved] = useState(false);
+  const [showHorizontalGridLines, setShowHorizontalGridLines] = useState(true);
+  const [horizontalGridLineColor, setHorizontalGridLineColor] = useState("#e0e0e0");
+
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -59,6 +82,7 @@ export default function TestPage() {
                 series.push({
                   title: headers[i],
                   label: headers[i],
+                  labelComponent: <ImageLabelComponent src={`/images/${headers[i]}.png`} />,
                   color: dataLineColors[(i - 1) % dataLineColors.length],
                   data: dataPoints,
                   xAxisLabels: xAxisLabels,
@@ -114,6 +138,8 @@ export default function TestPage() {
         setStaggered={setStaggered}
         setDelay={setDelay}
         setCurved={setCurved}
+        setShowHorizontalGridLines={setShowHorizontalGridLines}
+        setHorizontalGridLineColor={setHorizontalGridLineColor}
       />
       {data.length > 0 && data.some(series => series.data.length > 0) ? (
         <LineChart
@@ -130,6 +156,8 @@ export default function TestPage() {
           legendTextColor={legendTextColor}
           dataLineColors={dataLineColors}
           curved={curved}
+          showHorizontalGridLines={showHorizontalGridLines}
+          horizontalGridLineColor={horizontalGridLineColor}
         />
       ) : (
         <p>No valid data to display. Please upload a CSV file with numeric data.</p>
