@@ -1,7 +1,8 @@
-import React, { useMemo, useEffect, useRef, useState } from "react";
-import { motion, useAnimation, AnimatePresence } from "framer-motion";
+import React, { useMemo, useEffect, useRef, useState, useCallback } from "react";
+import { motion, useAnimation, AnimatePresence, useMotionValue } from "framer-motion";
 import type { LineChartProps } from "@/lib/types/line-chart";
 import styles from './line-chart.module.css';
+
 
 const LineChart: React.FC<LineChartProps> = ({
   dataSeries,
@@ -19,19 +20,39 @@ const LineChart: React.FC<LineChartProps> = ({
   dataLineColors = ["#0074D9", "#FF4136", "#2ECC40", "#FF851B", "#7FDBFF"],
   showHorizontalGridLines = true,
   horizontalGridLineColor = "#e0e0e0",
+  useFirstColumnAsX = false,
+  showDecimals: initialShowDecimals = false,
+  decimalPlaces: initialDecimalPlaces = 2,
+  yAxisPadding = 0.1,
+  xAxisPadding = 0.05,
+  strokeWidth = 2,
+  onAnimationComplete,
+  isZoomed,
+  aspectRatio = 16 / 6, // This creates a longer chart (you can adjust this further if needed)
+  minHeight = 400, // Minimum height in pixels
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 400 });
-  const margin = { top: 20, right: 20, bottom: 30, left: 40 };
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const margin = { top: 20, right: 40, bottom: 30, left: 60 }; // Increased left and right margins
+  const [showDecimals, setShowDecimals] = useState(initialShowDecimals);
+  const [decimalPlaces, setDecimalPlaces] = useState(initialDecimalPlaces);
+  const [focusedSeries, setFocusedSeries] = useState<number | null>(null);
+  const [currentlyAnimatingSeries, setCurrentlyAnimatingSeries] = useState<number | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const onAnimationCompleteRef = useRef(onAnimationComplete);
+
+  // Update the ref when onAnimationComplete changes
+  useEffect(() => {
+    onAnimationCompleteRef.current = onAnimationComplete;
+  }, [onAnimationComplete]);
 
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current) {
         const { width } = containerRef.current.getBoundingClientRect();
-        setDimensions({
-          width: width,
-          height: width * 0.5, // Adjust this ratio as needed
-        });
+        const height = Math.max((width / aspectRatio) * 0.6, minHeight); // Adjusted to 60% of calculated height
+        setDimensions({ width, height });
       }
     };
 
@@ -39,16 +60,22 @@ const LineChart: React.FC<LineChartProps> = ({
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [aspectRatio, minHeight]);
+
+  // Update state when props change
+  useEffect(() => {
+    setShowDecimals(initialShowDecimals);
+    setDecimalPlaces(initialDecimalPlaces);
+  }, [initialShowDecimals, initialDecimalPlaces]);
 
   const width = dimensions.width - margin.left - margin.right;
   const height = dimensions.height - margin.top - margin.bottom;
 
   const controls = useAnimation();
 
-  // Modify dataSeries to include labelComponent
+  // Update the DataSeries interface
   interface DataSeries {
-    data: number[];
+    data: { x: number; y: number }[];
     label?: string;
     labelComponent?: React.ReactNode;
     labelPosition?: string;
@@ -58,36 +85,63 @@ const LineChart: React.FC<LineChartProps> = ({
   }
 
   // Update the type of dataSeries
-  const updatedDataSeries = dataSeries as DataSeries[];
+  const updatedDataSeries = useMemo(() => dataSeries as DataSeries[], [dataSeries]);
 
-  // Generate the path data and find overall yMax
-  const { pathDataArray, yMax } = useMemo(() => {
+  // Modify the formatAxisValue function to use the state values
+  const formatAxisValue = useCallback((value: number): string => {
+    if (!showDecimals && Number.isInteger(value)) {
+      return value.toString();
+    } else {
+      return value.toFixed(decimalPlaces);
+    }
+  }, [showDecimals, decimalPlaces]);
+
+  // Modify the useMemo hook for pathDataArray, yMax, xMin, and xMax
+  const { pathDataArray, yMin, yMax, xMin, xMax } = useMemo(() => {
     if (!updatedDataSeries || updatedDataSeries.length === 0)
-      return { pathDataArray: [], yMax: 0 };
+      return { pathDataArray: [], yMin: 0, yMax: 0, xMin: 0, xMax: 0 };
 
-    const xStep = width / (updatedDataSeries[0].data.length - 1);
-    const yMax = Math.max(
-      ...updatedDataSeries.flatMap((series) =>
-        series.data.filter((value) => !skipZeroes || value !== 0)
-      )
-    );
-    const yScale = height / yMax;
+    const allXValues = updatedDataSeries.flatMap(series => series.data.map(point => point.x));
+    const allYValues = updatedDataSeries.flatMap(series => series.data.map(point => point.y));
+
+    let xMin = Math.min(...allXValues);
+    let xMax = Math.max(...allXValues);
+    let yMin = Math.min(...allYValues.filter(value => !skipZeroes || value !== 0));
+    let yMax = Math.max(...allYValues.filter(value => !skipZeroes || value !== 0));
+
+    // Add padding to yMin and yMax if zoomed
+    if (isZoomed) {
+      const yRange = yMax - yMin;
+      yMin = yMin - yRange * yAxisPadding;
+      yMax = yMax + yRange * yAxisPadding;
+    } else {
+      yMin = 0; // Reset to 0 for full view
+      yMax = yMax * (1 + yAxisPadding);
+    }
+
+    // Add padding to xMin and xMax
+    const xRange = xMax - xMin;
+    xMin = xMin - xRange * xAxisPadding;
+    xMax = xMax + xRange * xAxisPadding;
+
+    const xScale = width / (xMax - xMin);
+    const yScale = height / (yMax - yMin);
 
     const pathDataArray = updatedDataSeries.map((series, index) => {
       const points = series.data
-        .map((value, index) => ({
-          x: index * xStep,
-          y: value === 0 ? null : height - value * yScale,
-        }))
-        .filter((point) => point.y !== null);
+        .filter(point => !skipZeroes || point.y !== 0)
+        .map(point => ({
+          x: (point.x - xMin) * xScale,
+          y: height - (point.y - yMin) * yScale,
+        }));
 
-      const pathData = points.reduce((path, point, index, array) => {
-        if (index === 0 || (index > 0 && array[index - 1].y === null)) {
-          return `${path} M ${point.x} ${point.y}`;
+      const pathData = points.reduce((path, point, index) => {
+        if (index === 0) {
+          return `M ${point.x} ${point.y}`;
         }
 
         if (curved) {
-          const prevPoint = array[index - 1];
+          const prevPoint = points[index - 1];
           const midX = (prevPoint.x + point.x) / 2;
           return `${path} C ${midX} ${prevPoint.y}, ${midX} ${point.y}, ${point.x} ${point.y}`;
         } else {
@@ -100,22 +154,32 @@ const LineChart: React.FC<LineChartProps> = ({
         pathData,
         startPoint: points[0],
         endPoint: points[points.length - 1],
-        color: dataLineColors[index % dataLineColors.length], // Use color from dataLineColors
+        color: dataLineColors[index % dataLineColors.length],
       };
     });
 
-    return { pathDataArray, yMax };
-  }, [updatedDataSeries, width, height, curved, skipZeroes, dataLineColors]);
+    return { pathDataArray, yMin, yMax, xMin, xMax };
+  }, [updatedDataSeries, width, height, curved, skipZeroes, dataLineColors, yAxisPadding, xAxisPadding, isZoomed]);
 
-  // Generate y-axis ticks
+  // Update the yAxisTicks generation
   const yAxisTicks = useMemo(() => {
     const tickCount = 5;
     return Array.from({ length: tickCount }, (_, i) => {
-      const value = (yMax / (tickCount - 1)) * i;
-      const y = height - (value / yMax) * height;
-      return { value: Math.round(value), y };
+      const value = yMin + ((yMax - yMin) / (tickCount - 1)) * i;
+      const y = height - ((value - yMin) / (yMax - yMin)) * height;
+      return { value, y };
     });
-  }, [yMax, height]);
+  }, [yMin, yMax, height, formatAxisValue]);
+
+  // Update the xAxisTicks generation
+  const xAxisTicks = useMemo(() => {
+    const tickCount = 5;
+    return Array.from({ length: tickCount }, (_, i) => {
+      const value = xMin + ((xMax - xMin) / (tickCount - 1)) * i;
+      const x = ((value - xMin) / (xMax - xMin)) * width;
+      return { value, x };
+    });
+  }, [xMin, xMax, width, formatAxisValue]);
 
   const pathRefs = useRef([]);
   const [animationProgress, setAnimationProgress] = useState(
@@ -128,21 +192,46 @@ const LineChart: React.FC<LineChartProps> = ({
   };
 
   useEffect(() => {
+
     const animateLines = async () => {
+      setIsAnimating(true);
       if (staggered) {
         for (let i = 0; i < pathDataArray.length; i++) {
-          await controls.start(i.toString());
-          if (i < pathDataArray.length - 1) {
+
+          if (i === i) {
+            await new Promise((resolve) => setTimeout(resolve, 4000));
+          } else {
             await new Promise((resolve) => setTimeout(resolve, delay * 1000));
           }
+
+          setCurrentlyAnimatingSeries(i);
+          setFocusedSeries(i);
+          
+          // This shouldn't happen until the above await is complete
+
+          await controls.start(i.toString());
+          
+          // Use the ref to call the latest version of onAnimationComplete
+          onAnimationCompleteRef.current?.({
+            id: `series-${i}`,
+            name: pathDataArray[i].title || `Series ${i + 1}`,
+            value: Math.max(...pathDataArray[i].data.map(point => point.y)),
+          });
+          
+          
         }
       } else {
+        setCurrentlyAnimatingSeries(null);
         await controls.start("all");
       }
+      setCurrentlyAnimatingSeries(null);
+      setIsAnimating(false);
     };
 
-    animateLines();
-  }, [controls, pathDataArray, staggered, delay]);
+    if (pathDataArray.length > 0) {
+      animateLines();
+    }
+  }, [controls, staggered, delay, pathDataArray]);
 
 
   // Memoize the axis elements
@@ -159,9 +248,19 @@ const LineChart: React.FC<LineChartProps> = ({
         {yAxisTicks.map(({ value, y }) => (
           <g key={value}>
             <line x1="-5" y1={y} x2="0" y2={y} stroke={axisColor} />
-            <text x="-10" y={y} dy="0.32em" textAnchor="end" fontSize="12" fill={axisColor}>
-              {value}
-            </text>
+            <motion.text 
+              x="-10" 
+              y={y} 
+              dominantBaseline="middle" 
+              textAnchor="end" 
+              fontSize="12" 
+              fill={axisColor}
+              initial={{ opacity: 1 }}
+              animate={{ opacity: 1 }}
+              key={`${value}-${showDecimals}-${decimalPlaces}`}
+            >
+              {formatAxisValue(value)}
+            </motion.text>
 
             {/* Render horizontal grid lines if the prop is true */}
             {showHorizontalGridLines && (
@@ -171,14 +270,14 @@ const LineChart: React.FC<LineChartProps> = ({
                 x2={width}
                 y2={y}
                 stroke={horizontalGridLineColor}
-                strokeDasharray="5,5" // Optional: makes the grid lines dashed
+                strokeDasharray="5,5"
               />
             )}
           </g>
         ))}
       </>
     );
-  }, [height, width, axisColor, yAxisTicks, showHorizontalGridLines, horizontalGridLineColor]);
+  }, [height, width, axisColor, yAxisTicks, showHorizontalGridLines, horizontalGridLineColor, formatAxisValue]);
 
   const [labelDimensions, setLabelDimensions] = useState<{ [key: number]: { width: number, height: number } }>({});
 
@@ -222,10 +321,10 @@ const LineChart: React.FC<LineChartProps> = ({
     return { labelX, labelY };
   };
 
-  const [focusedSeries, setFocusedSeries] = useState<number | null>(null);
-
   const handleLegendClick = (index: number) => {
-    setFocusedSeries(focusedSeries === index ? null : index);
+    if (!isAnimating) {
+      setFocusedSeries(focusedSeries === index ? null : index);
+    }
   };
 
   // Sort the pathDataArray to bring the focused series to the end (top)
@@ -238,7 +337,7 @@ const LineChart: React.FC<LineChartProps> = ({
   }, [pathDataArray, focusedSeries]);
 
   return (
-    <div ref={containerRef} className="w-full">
+    <div ref={containerRef} style={{ width: '100%', height: `${dimensions.height}px` }}>
       <svg
         width={dimensions.width}
         height={dimensions.height}
@@ -254,6 +353,23 @@ const LineChart: React.FC<LineChartProps> = ({
         />
         <g transform={`translate(${margin.left},${margin.top})`}>
           {axisElements}
+          {useFirstColumnAsX && xAxisTicks.map(({ value, x }) => (
+            <g key={value} transform={`translate(${x}, ${height})`}>
+              <line y2="5" stroke={axisColor} />
+              <motion.text 
+                y="20" 
+                textAnchor="middle" 
+                fontSize="12" 
+                fill={axisColor}
+                transform={`translate(0, ${showDecimals || !Number.isInteger(value) ? 5 : 0})`}
+                initial={{ opacity: 1 }}
+                animate={{ opacity: 1 }}
+                key={`${value}-${showDecimals}-${decimalPlaces}`}
+              >
+                {formatAxisValue(value)}
+              </motion.text>
+            </g>
+          ))}
 
           {/* Chart lines and labels */}
           {sortedPathDataArray.map((series, index) => {
@@ -261,14 +377,20 @@ const LineChart: React.FC<LineChartProps> = ({
             return (
               <g 
                 key={originalIndex} 
-                className={focusedSeries === null || focusedSeries === originalIndex ? '' : styles.unfocused}
+                className={
+                  (focusedSeries === null && !isAnimating) || 
+                  focusedSeries === originalIndex || 
+                  currentlyAnimatingSeries === originalIndex 
+                    ? '' 
+                    : styles.unfocused
+                }
               >
                 <motion.path
                   ref={(el) => (pathRefs.current[originalIndex] = el)}
                   d={series.pathData}
                   fill="none"
                   stroke={series.color}
-                  strokeWidth="3"
+                  strokeWidth={strokeWidth}
                   initial={{ pathLength: 0 }}
                   animate={controls}
                   variants={{
@@ -307,8 +429,8 @@ const LineChart: React.FC<LineChartProps> = ({
                         let labelY = y;
                         const labelDim = labelDimensions[originalIndex] || { width: 60, height: 20 };
                         const padding = 6;
-                        const boxWidth = labelDim.width + padding * 2;
-                        const boxHeight = labelDim.height + padding * 2;
+                        const boxWidth = Math.max(labelDim.width, 100) + padding * 2;
+                        const boxHeight = Math.max(labelDim.height, 40) + padding * 2;
 
                         switch (series.labelPosition) {
                           case "top":
@@ -360,15 +482,12 @@ const LineChart: React.FC<LineChartProps> = ({
                               {/* Render the labelComponent if provided */}
                               {series.labelComponent ? (
                                 <foreignObject
-                                  x={-boxWidth / 2 + padding}
-                                  y={-boxHeight / 2 + padding}
-                                  width={boxWidth - padding * 1.5}
-                                  height={boxHeight - padding * 1.5}
+                                  x={-boxWidth / 2}
+                                  y={-boxHeight / 2}
+                                  width={boxWidth}
+                                  height={boxHeight}
                                 >
-                                  <div
-                                    xmlns="http://www.w3.org/1999/xhtml"
-                                    style={{ textAlign: 'center' }}
-                                  >
+                                  <div xmlns="http://www.w3.org/1999/xhtml">
                                     {series.labelComponent}
                                   </div>
                                 </foreignObject>
@@ -400,44 +519,55 @@ const LineChart: React.FC<LineChartProps> = ({
           <AnimatePresence>
             {showLegend && (
               <motion.g
-                transform={`translate(${width - 100}, 0)`}
+                transform={`translate(${width / 2}, 10)`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3 }}
               >
                 <rect
-                  x="-10"
-                  y="-5"
-                  width="110"
-                  height={pathDataArray.length * 20 + 10}
+                  x={-width / 2 + margin.left}
+                  y="-25"
+                  width={width - margin.left - margin.right}
+                  height="40"
                   fill={legendBackgroundColor}
                   rx="5"
                   ry="5"
                 />
-                {pathDataArray.map((series, index) => (
-                  <g
-                    key={index}
-                    transform={`translate(0, ${index * 20})`}
-                    onClick={() => handleLegendClick(index)}
-                    style={{ cursor: "pointer" }}
-                    className={focusedSeries === null || focusedSeries === index ? '' : styles.unfocused}
-                  >
-                    <rect
-                      width="10"
-                      height="10"
-                      fill={series.color}
-                    />
-                    <text
-                      x="15"
-                      y="9"
-                      fontSize="12"
-                      fill={legendTextColor}
+                {pathDataArray.map((series, index) => {
+                  const itemWidth = 100; // Adjust this value based on your needs
+                  const totalWidth = pathDataArray.length * itemWidth;
+                  const startX = -totalWidth / 2;
+                  return (
+                    <g
+                      key={index}
+                      transform={`translate(${startX + index * itemWidth}, 0)`}
+                      onClick={() => handleLegendClick(index)}
+                      style={{ cursor: !isAnimating ? "pointer" : "default" }}
+                      className={
+                        (focusedSeries === null && !isAnimating) || 
+                        focusedSeries === index || 
+                        currentlyAnimatingSeries === index 
+                          ? '' 
+                          : styles.unfocused
+                      }
                     >
-                      {series.title || 'Untitled'}
-                    </text>
-                  </g>
-                ))}
+                      <rect
+                        width="10"
+                        height="10"
+                        fill={series.color}
+                      />
+                      <text
+                        x="15"
+                        y="9"
+                        fontSize="12"
+                        fill={legendTextColor}
+                      >
+                        {series.title || 'Untitled'}
+                      </text>
+                    </g>
+                  );
+                })}
               </motion.g>
             )}
           </AnimatePresence>

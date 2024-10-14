@@ -1,26 +1,25 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Papa from "papaparse";
 import ChartControls from "@/components/chart-controls";
 import type { DataSeries } from "@/lib/types/line-chart";
 import LineChart from "@/components/line-chart/line-chart";
 import Image from "next/image";
+import AnimatedTable from "./rank-table";
+import { Button } from "@/components/ui/button"; // Add this import
 
 
 // Custom component that renders an image
-const ImageLabelComponent = ({ src }: { src: string }) => (
-  <div
-    className="relative overflow-hidden"
-  >
-    <Image
-      src={src}
-      alt="Label"
-      width={250}
-      height={250}
-      style={{ objectFit: 'cover' }}
-      className="w-full h-full "
-    />
+const ImageLabelComponent = ({ src, lastNum }: { src: string, lastNum: number }) => (
+  <div className="flex items-center justify-center" style={{ width: '100%', height: '100%' }}>
+      <Image
+        src={src}
+        alt="Label"
+        width={80}
+        height={80}
+        style={{ objectFit: 'contain' }}
+      />
   </div>
 );
 
@@ -33,9 +32,9 @@ export default function TestPage() {
   const [axisColor, setAxisColor] = useState("#000000");
   const [labelColor, setLabelColor] = useState("#000000");
   const [labelBackgroundColor, setLabelBackgroundColor] = useState("rgba(255, 255, 255, 0.7)");
-  const [legendBackgroundColor, setLegendBackgroundColor] = useState("#ffffff");
+  const [legendBackgroundColor, setLegendBackgroundColor] = useState("rgba(255, 255, 255, 0)");
   const [legendTextColor, setLegendTextColor] = useState("#000000");
-  const [dataLineColors, setDataLineColors] = useState(["#FFD700", "#FF4500", "#C0C0C0", "#1E90FF", "#104E8B", "#3CB371"]);
+  const [dataLineColors, setDataLineColors] = useState(["#FFD700", "#FF4500", "#f26122", "#1E90FF", "#104E8B", "#3CB371"]);
   const [showLegend, setShowLegend] = useState(true);
   const [skipZeroes, setSkipZeroes] = useState(false);
   const [staggered, setStaggered] = useState(true);
@@ -43,7 +42,21 @@ export default function TestPage() {
   const [curved, setCurved] = useState(false);
   const [showHorizontalGridLines, setShowHorizontalGridLines] = useState(true);
   const [horizontalGridLineColor, setHorizontalGridLineColor] = useState("#e0e0e0");
+  const [useFirstColumnAsX, setUseFirstColumnAsX] = useState(false);
+  const [showDecimals, setShowDecimals] = useState(false);
+  const [decimalPlaces, setDecimalPlaces] = useState(2);
+  const [yAxisPadding, setYAxisPadding] = useState(0.1);
+  const [xAxisPadding, setXAxisPadding] = useState(0.05);
+  const [strokeWidth, setStrokeWidth] = useState(2);
+  const [tableData, setTableData] = useState<{ id: string; name: string; value: number }[]>([]);
+  const [completedAnimations, setCompletedAnimations] = useState<Set<string>>(new Set());
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [loadedData, setLoadedData] = useState<DataSeries[]>([]);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
+  useEffect(() => {
+    console.log("tableData updated:", tableData);
+  }, [tableData]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -51,66 +64,93 @@ export default function TestPage() {
       const reader = new FileReader();
       reader.onload = (e) => {
         const csvText = e.target?.result as string;
-        console.log("CSV Text:", csvText); // Log the raw CSV text
         Papa.parse(csvText, {
           complete: (result) => {
-            console.log("Raw parsed data:", result.data);
-            setRawData(result.data as string[][]);
             const parsedData = result.data as string[][];
+            setRawData(parsedData);
             const series: DataSeries[] = [];
             
             if (parsedData.length > 1) {
-              console.log('parsedData', parsedData);
-              console.log('parsedData length:', parsedData.length);
-              console.log('parsedData[0]:', parsedData[0]);
-              
-              // Assuming the first row is the header
               const headers = parsedData[0];
-              console.log('Headers:', headers);
+              const startIndex = useFirstColumnAsX ? 1 : 0;
+              const xAxisLabels = useFirstColumnAsX ? parsedData.slice(1).map(row => row[0]) : null;
               
-              // Assuming the first column is for x-axis labels
-              const xAxisLabels = parsedData.slice(1).map(row => row[0]);
-              console.log('xAxisLabels:', xAxisLabels);
-              
-              for (let i = 0; i < headers.length; i++) {
-                console.log(`Processing column ${i}: ${headers[i]}`);
-                const dataPoints = parsedData.slice(1).map(row => {
-                  const value = parseFloat(row[i] || '0');
-                  return isNaN(value) ? 0 : value;
-                });
-                console.log(`Data points for series ${i}:`, dataPoints);
-                series.push({
-                  title: headers[i],
-                  label: headers[i],
-                  labelComponent: <ImageLabelComponent src={`/images/${headers[i]}.png`} />,
-                  color: dataLineColors[(i - 1) % dataLineColors.length],
-                  data: dataPoints,
-                  xAxisLabels: xAxisLabels,
-                  animationDuration: 4, // This are seconds
-                  labelPosition: "top"
-                } as DataSeries);
+              for (let i = startIndex; i < headers.length; i++) {
+                const dataPoints = parsedData.slice(1).map((row, rowIndex) => {
+                  const x = useFirstColumnAsX ? parseFloat(row[0]) : rowIndex;
+                  const y = parseFloat(row[i]);
+                  return { 
+                    x: isNaN(x) ? rowIndex : x, 
+                    y: isNaN(y) ? null : y  // Use null for invalid numbers
+                  };
+                }).filter(point => point.y !== null);  // Filter out invalid points
+                
+                if (dataPoints.length > 0) {
+                  series.push({
+                    title: headers[i],
+                    label: headers[i],
+                    labelComponent: <ImageLabelComponent src={`/images/${headers[i]}.png`} lastNum={dataPoints[dataPoints.length - 1].y} />,
+                    color: dataLineColors[(i - startIndex) % dataLineColors.length],
+                    data: dataPoints,
+                    xAxisLabels: xAxisLabels,
+                    animationDuration: 4,
+                    labelPosition: "top"
+                  } as DataSeries);
+                }
               }
-            } else {
-              console.log('Parsed data has insufficient rows');
             }
             
-            console.log("Final series data:", series);
-            setData(series);
+            setLoadedData(series);
+            setIsDataLoaded(true);
           },
           error: (error: any) => console.error("Error:", error),
-          header: false, // Changed to false
+          header: false,
           dynamicTyping: false,
           skipEmptyLines: true,
-          delimiter: ",", // Explicitly set the delimiter
+          delimiter: ",",
         });
       };
       reader.readAsText(file);
     }
   };
 
+  const handleStartAnimation = () => {
+    setData(loadedData);
+    setTableData([]);
+  };
+
+  const handleRestartAnimation = () => {
+    setData([]);
+    setTableData([]);
+    setTimeout(() => {
+      setData(loadedData);
+    }, 100);
+  };
+
+  const handleAnimationComplete = useCallback((maxValue: { id: string; name: string; value: number }) => {
+    console.log("Animation completed for:", maxValue);
+    setTableData(prevData => {
+      // Check if this animation has already been completed
+      if (!completedAnimations.has(maxValue.id)) {
+        setCompletedAnimations(prev => new Set(prev).add(maxValue.id));
+        // Only add the new entry if it doesn't already exist
+        if (!prevData.some(item => item.id === maxValue.id)) {
+          return [...prevData, maxValue];
+        }
+      }
+      return prevData;
+    });
+  }, [completedAnimations]);
+
   return (
-    <div className="container mx-auto mt-8 px-4">
+    <div className="mx-auto mt-8 px-4">
       <ChartControls
+        yAxisPadding={yAxisPadding}
+        xAxisPadding={xAxisPadding}
+        setYAxisPadding={setYAxisPadding}
+        setXAxisPadding={setXAxisPadding}
+        showHorizontalGridLines={showHorizontalGridLines}
+        horizontalGridLineColor={horizontalGridLineColor}
         data={data}
         rawData={rawData}
         handleFileUpload={handleFileUpload}
@@ -140,27 +180,62 @@ export default function TestPage() {
         setCurved={setCurved}
         setShowHorizontalGridLines={setShowHorizontalGridLines}
         setHorizontalGridLineColor={setHorizontalGridLineColor}
+        useFirstColumnAsX={useFirstColumnAsX}
+        setUseFirstColumnAsX={setUseFirstColumnAsX}
+        showDecimals={showDecimals}
+        setShowDecimals={setShowDecimals}
+        decimalPlaces={decimalPlaces}
+        setDecimalPlaces={setDecimalPlaces}
+        strokeWidth={strokeWidth}
+        setStrokeWidth={setStrokeWidth}
+        isZoomed={isZoomed}
+        setIsZoomed={setIsZoomed}
       />
+
+      {isDataLoaded && (
+        <div className="mb-4 space-x-4">
+          <Button onClick={handleStartAnimation}>
+            Start Animation
+          </Button>
+          <Button onClick={handleRestartAnimation}>
+            Restart Animation
+          </Button>
+        </div>
+      )}
+
       {data.length > 0 && data.some(series => series.data.length > 0) ? (
-        <LineChart
-          dataSeries={data}
-          showLegend={showLegend}
-          staggered={staggered}
-          delay={delay}
-          axisColor={axisColor}
-          labelColor={labelColor}
-          skipZeroes={skipZeroes}
-          labelBackgroundColor={labelBackgroundColor}
-          chartBackgroundColor={chartBackgroundColor}
-          legendBackgroundColor={legendBackgroundColor}
-          legendTextColor={legendTextColor}
-          dataLineColors={dataLineColors}
-          curved={curved}
-          showHorizontalGridLines={showHorizontalGridLines}
-          horizontalGridLineColor={horizontalGridLineColor}
-        />
+        <div className="flex ">
+          <div className="w-[80%]">
+            <LineChart
+              dataSeries={data}
+              showLegend={showLegend}
+              staggered={staggered}
+              delay={delay}
+              axisColor={axisColor}
+              labelColor={labelColor}
+              skipZeroes={skipZeroes}
+              labelBackgroundColor={labelBackgroundColor}
+              chartBackgroundColor={chartBackgroundColor}
+              legendBackgroundColor={legendBackgroundColor}
+              legendTextColor={legendTextColor}
+              dataLineColors={dataLineColors}
+              curved={curved}
+              showHorizontalGridLines={showHorizontalGridLines}
+              horizontalGridLineColor={horizontalGridLineColor}
+              useFirstColumnAsX={useFirstColumnAsX}
+              showDecimals={showDecimals}
+              decimalPlaces={decimalPlaces}
+              strokeWidth={strokeWidth}
+              onAnimationComplete={handleAnimationComplete}
+              isZoomed={isZoomed}
+            />
+          </div>
+          <div className="w-[20%]">
+            <AnimatedTable data={tableData} />
+          </div>
+        </div>
       ) : (
-        <p>No valid data to display. Please upload a CSV file with numeric data.</p>
+        <p className="h-[90vh]">No valid data to display. Please upload a CSV file with numeric data and click "Start Animation".</p>
       )}
     </div>
   );

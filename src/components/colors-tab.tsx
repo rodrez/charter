@@ -11,6 +11,7 @@ interface ColorsTabProps {
   legendBackgroundColor: string;
   legendTextColor: string;
   dataLineColors: string[];
+  horizontalGridLineColor: string;
   setChartBackgroundColor: (color: string) => void;
   setAxisColor: (color: string) => void;
   setLabelColor: (color: string) => void;
@@ -18,6 +19,7 @@ interface ColorsTabProps {
   setLegendBackgroundColor: (color: string) => void;
   setLegendTextColor: (color: string) => void;
   setDataLineColors: (colors: string[]) => void;
+  setHorizontalGridLineColor: (color: string) => void;
 }
 
 const ColorsTab: React.FC<ColorsTabProps> = ({
@@ -28,6 +30,7 @@ const ColorsTab: React.FC<ColorsTabProps> = ({
   legendBackgroundColor,
   legendTextColor,
   dataLineColors,
+  horizontalGridLineColor,
   setChartBackgroundColor,
   setAxisColor,
   setLabelColor,
@@ -35,6 +38,7 @@ const ColorsTab: React.FC<ColorsTabProps> = ({
   setLegendBackgroundColor,
   setLegendTextColor,
   setDataLineColors,
+  setHorizontalGridLineColor,
 }) => {
   return (
     <Tabs defaultValue="chart">
@@ -82,6 +86,16 @@ const ColorsTab: React.FC<ColorsTabProps> = ({
               type="color"
               value={labelBackgroundColor}
               onChange={(e) => setLabelBackgroundColor(e.target.value)}
+              className="h-10 w-14"
+            />
+          </div>
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="horizontal-grid-line-color">Horizontal Grid Line:</Label>
+            <Input
+              id="horizontal-grid-line-color"
+              type="color"
+              value={horizontalGridLineColor}
+              onChange={(e) => setHorizontalGridLineColor(e.target.value)}
               className="h-10 w-14"
             />
           </div>

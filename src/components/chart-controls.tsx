@@ -28,19 +28,39 @@ interface ChartControlsProps {
   setDataLineColors: (colors: string[]) => void;
   setShowLegend: (show: boolean) => void;
   setSkipZeroes: (skip: boolean) => void;
+  showDecimals: boolean;
+  decimalPlaces: number;
+  setShowDecimals: (show: boolean) => void;
+  setDecimalPlaces: (places: number) => void;
   staggered: boolean;
   delay: number;
   curved: boolean;
   setStaggered: (staggered: boolean) => void;
   setDelay: (delay: number) => void;
+  isZoomed: boolean;
+  setIsZoomed: (isZoomed: boolean) => void;
   setCurved: (curved: boolean) => void;
   showHorizontalGridLines: boolean;
   setShowHorizontalGridLines: (show: boolean) => void;
   horizontalGridLineColor: string;
   setHorizontalGridLineColor: (color: string) => void;
+  yAxisPadding: number;
+  xAxisPadding: number;
+  setYAxisPadding: (padding: number) => void;
+  setXAxisPadding: (padding: number) => void;
+  useFirstColumnAsX: boolean;
+  setUseFirstColumnAsX: (use: boolean) => void;
+  strokeWidth: number;
+  setStrokeWidth: (width: number) => void;
 }
 
 const ChartControls: React.FC<ChartControlsProps> = ({
+  isZoomed,
+  setIsZoomed,
+  yAxisPadding,
+  xAxisPadding,
+  setYAxisPadding,
+  setXAxisPadding,
   data,
   rawData,
   staggered,
@@ -72,6 +92,14 @@ const ChartControls: React.FC<ChartControlsProps> = ({
   setShowHorizontalGridLines,
   horizontalGridLineColor,
   setHorizontalGridLineColor,
+  useFirstColumnAsX,
+  setUseFirstColumnAsX,
+  showDecimals,
+  decimalPlaces,
+  setShowDecimals,
+  setDecimalPlaces,
+  strokeWidth,
+  setStrokeWidth,
 }) => {
   return (
     <Card className="mb-8" style={{ backgroundColor: chartBackgroundColor }}>
@@ -103,6 +131,8 @@ const ChartControls: React.FC<ChartControlsProps> = ({
               dataLineColors={dataLineColors}
               setChartBackgroundColor={setChartBackgroundColor}
               setAxisColor={setAxisColor}
+              horizontalGridLineColor={horizontalGridLineColor}
+              setHorizontalGridLineColor={setHorizontalGridLineColor}
               setLabelColor={setLabelColor}
               setLabelBackgroundColor={setLabelBackgroundColor}
               setLegendBackgroundColor={setLegendBackgroundColor}
@@ -112,20 +142,32 @@ const ChartControls: React.FC<ChartControlsProps> = ({
           </TabsContent>
           <TabsContent value="options">
             <OptionsTab
+              yAxisPadding={yAxisPadding}
+              xAxisPadding={xAxisPadding}
               showLegend={showLegend}
               staggered={staggered}
               delay={delay}
               curved={curved}
               skipZeroes={skipZeroes}
               showHorizontalGridLines={showHorizontalGridLines}
-              horizontalGridLineColor={horizontalGridLineColor}
               setShowLegend={setShowLegend}
+              isZoomed={isZoomed}
+              setIsZoomed={setIsZoomed}
               setSkipZeroes={setSkipZeroes}
               setStaggered={setStaggered}
               setDelay={setDelay}
               setCurved={setCurved}
               setShowHorizontalGridLines={setShowHorizontalGridLines}
-              setHorizontalGridLineColor={setHorizontalGridLineColor}
+              useFirstColumnAsX={useFirstColumnAsX}
+              setUseFirstColumnAsX={setUseFirstColumnAsX}
+              showDecimals={showDecimals}
+              decimalPlaces={decimalPlaces}
+              setShowDecimals={setShowDecimals}
+              setDecimalPlaces={setDecimalPlaces}
+              strokeWidth={strokeWidth}
+              setStrokeWidth={setStrokeWidth}
+              setYAxisPadding={setYAxisPadding}
+              setXAxisPadding={setXAxisPadding}
             />
           </TabsContent>
         </Tabs>

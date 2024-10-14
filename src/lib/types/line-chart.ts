@@ -22,4 +22,16 @@ export interface LineChartProps {
   legendBackgroundColor?: string;
   legendTextColor?: string;
   dataLineColors?: string[];
+  showHorizontalGridLines?: boolean;
+  horizontalGridLineColor?: string;
+  useFirstColumnAsX?: boolean;
+  showDecimals?: boolean;
+  decimalPlaces?: number;
+  yAxisPadding?: number;
+  xAxisPadding?: number;
+  strokeWidth?: number;
+  onAnimationComplete?: (maxValues: { id: string; name: string; value: number }) => void;
+  isZoomed?: boolean;
+  aspectRatio?: number;
+  minHeight?: number;
 }

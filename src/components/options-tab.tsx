@@ -10,92 +10,111 @@ interface OptionsTabProps {
   curved: boolean;
   skipZeroes: boolean;
   showHorizontalGridLines: boolean;
-  horizontalGridLineColor: string;
+  yAxisPadding: number;
+  xAxisPadding: number;
   setShowLegend: (show: boolean) => void;
   setSkipZeroes: (skip: boolean) => void;
   setShowHorizontalGridLines: (show: boolean) => void;
-  setHorizontalGridLineColor: (color: string) => void;
   setStaggered: (staggered: boolean) => void;
   setDelay: (delay: number) => void;
   setCurved: (curved: boolean) => void;
+  useFirstColumnAsX: boolean;
+  setUseFirstColumnAsX: (use: boolean) => void;
+  showDecimals: boolean;
+  decimalPlaces: number;
+  setShowDecimals: (show: boolean) => void;
+  setDecimalPlaces: (places: number) => void;
+  setYAxisPadding: (padding: number) => void;
+  setXAxisPadding: (padding: number) => void;
+  strokeWidth: number;
+  setStrokeWidth: (width: number) => void;
+  isZoomed: boolean;
+  setIsZoomed: (isZoomed: boolean) => void;
 }
 
 const OptionsTab: React.FC<OptionsTabProps> = ({
+  isZoomed,
+  setIsZoomed,
   showLegend,
   staggered,
   delay,
   curved,
   skipZeroes,
   showHorizontalGridLines,
-  horizontalGridLineColor,
   setShowLegend,
   setSkipZeroes,
   setShowHorizontalGridLines,
-  setHorizontalGridLineColor,
   setStaggered,
   setDelay,
   setCurved,
+  useFirstColumnAsX,
+  setUseFirstColumnAsX,
+  showDecimals,
+  decimalPlaces,
+  setShowDecimals,
+  setDecimalPlaces,
+  yAxisPadding,
+  xAxisPadding,
+  setYAxisPadding,
+  setXAxisPadding,
+  strokeWidth,
+  setStrokeWidth,
 }) => {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="show-legend"
-          checked={showLegend}
-          onCheckedChange={setShowLegend}
-        />
-        <Label htmlFor="show-legend">Show Legend</Label>
-      </div>
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="skip-zeroes"
-          checked={skipZeroes}
-          onCheckedChange={setSkipZeroes}
-        />
-        <Label htmlFor="skip-zeroes">Skip Zero Values</Label>
-      </div>
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="curved"
-          checked={curved}
-          onCheckedChange={setCurved}
-        />
-        <Label htmlFor="curved">Curved Lines</Label>
+    <div className="space-y-8">
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Chart Display</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <SwitchOption id="show-legend" checked={showLegend} onCheckedChange={setShowLegend} label="Show Legend" />
+          <SwitchOption id="curved" checked={curved} onCheckedChange={setCurved} label="Curved Lines" />
+          <SwitchOption id="show-horizontal-grid-lines" checked={showHorizontalGridLines} onCheckedChange={setShowHorizontalGridLines} label="Horizontal Grid Lines" />
+          <SwitchOption id="is-zoomed" checked={isZoomed} onCheckedChange={setIsZoomed} label="Zoom to Data" />
+        </div>
       </div>
 
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="staggered"
-          checked={staggered}
-          onCheckedChange={setStaggered}
-        />
-        <Label htmlFor="staggered">Staggered</Label>
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Data Handling</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <SwitchOption id="skip-zeroes" checked={skipZeroes} onCheckedChange={setSkipZeroes} label="Skip Zero Values" />
+          <SwitchOption id="use-first-column-as-x" checked={useFirstColumnAsX} onCheckedChange={setUseFirstColumnAsX} label="Use First Column as X" />
+          <SwitchOption id="show-decimals" checked={showDecimals} onCheckedChange={setShowDecimals} label="Show Decimals" />
+          <NumberInput id="decimal-places" value={decimalPlaces} onChange={setDecimalPlaces} label="Decimal Places" />
+        </div>
       </div>
-      <div className="flex items-center space-x-2">
-        <Label htmlFor="delay">Delay</Label>
-        <Input type="number" id="delay" value={delay} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDelay(Number(e.target.value))} />
+
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Animation</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <SwitchOption id="staggered" checked={staggered} onCheckedChange={setStaggered} label="Staggered" />
+          <NumberInput id="delay" value={delay} onChange={setDelay} label="Delay" />
+        </div>
       </div>
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="show-horizontal-grid-lines"
-          checked={showHorizontalGridLines}
-          onCheckedChange={setShowHorizontalGridLines}
-        />
-        <Label htmlFor="show-horizontal-grid-lines">Show Horizontal Grid Lines</Label>
-      </div>
-      <div className="flex items-center space-x-2">
-        <Label htmlFor="horizontal-grid-line-color">Horizontal Grid Line Color</Label>
-        <Input
-          type="color"
-          id="horizontal-grid-line-color"
-          value={horizontalGridLineColor}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            setHorizontalGridLineColor(e.target.value)
-          }
-        />
+
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Chart Customization</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <NumberInput id="y-axis-padding" value={yAxisPadding} onChange={setYAxisPadding} label="Y Axis Padding" />
+          <NumberInput id="x-axis-padding" value={xAxisPadding} onChange={setXAxisPadding} label="X Axis Padding" />
+          <NumberInput id="stroke-width" value={strokeWidth} onChange={setStrokeWidth} label="Stroke Width" />
+        </div>
       </div>
     </div>
   );
 };
+
+// Helper components
+const SwitchOption: React.FC<{ id: string; checked: boolean; onCheckedChange: (checked: boolean) => void; label: string }> = ({ id, checked, onCheckedChange, label }) => (
+  <div className="flex items-center space-x-2">
+    <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+    <Label htmlFor={id}>{label}</Label>
+  </div>
+);
+
+const NumberInput: React.FC<{ id: string; value: number; onChange: (value: number) => void; label: string }> = ({ id, value, onChange, label }) => (
+  <div className="flex flex-col space-y-1">
+    <Label htmlFor={id}>{label}</Label>
+    <Input type="number" id={id} value={value} onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(Number(e.target.value))} />
+  </div>
+);
 
 export default OptionsTab;

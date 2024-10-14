@@ -1,0 +1,4 @@
+[ZoneTransfer]
+ZoneId=3
+ReferrerUrl=https://cloudconvert.com/
+HostUrl=https://us-east.storage.cloudconvert.com/tasks/ccf5a000-6a9f-4010-ba6e-d949f5f9181d/Wix.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=cloudconvert-production%2F20241013%2Fva%2Fs3%2Faws4_request&X-Amz-Date=20241013T201653Z&X-Amz-Expires=86400&X-Amz-Signature=118f366c9e97c3ba7f174ba77c31599f706b0b689be4f0d8b0c4cd52d5f49abb&X-Amz-SignedHeaders=host&response-content-disposition=attachment%3B%20filename%3D%22Wix.png%22&response-content-type=image%2Fpng&x-id=GetObject
