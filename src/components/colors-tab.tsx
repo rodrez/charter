@@ -20,6 +20,8 @@ interface ColorsTabProps {
   setLegendTextColor: (color: string) => void;
   setDataLineColors: (colors: string[]) => void;
   setHorizontalGridLineColor: (color: string) => void;
+  setAxisTitleColor: (color: string) => void;
+  axisTitleColor: string;
 }
 
 const ColorsTab: React.FC<ColorsTabProps> = ({
@@ -39,7 +41,10 @@ const ColorsTab: React.FC<ColorsTabProps> = ({
   setLegendTextColor,
   setDataLineColors,
   setHorizontalGridLineColor,
+  setAxisTitleColor,
+  axisTitleColor,
 }) => {
+
   return (
     <Tabs defaultValue="chart">
       <TabsList>
@@ -143,6 +148,16 @@ const ColorsTab: React.FC<ColorsTabProps> = ({
               />
             </div>
           ))}
+        </div>
+        <div className="flex items-center space-x-2">
+          <Label htmlFor="axis-title-color">Axis Title:</Label>
+          <Input
+            id="axis-title-color"
+            type="color"
+            value={axisTitleColor}
+            onChange={(e) => setAxisTitleColor(e.target.value)}
+            className="h-10 w-14"
+          />
         </div>
       </TabsContent>
     </Tabs>

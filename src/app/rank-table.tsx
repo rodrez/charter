@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 
 // Assuming these components are from your UI library and can be modified
 import {
@@ -15,67 +16,86 @@ interface DataItem {
   id: string;
   name: string;
   value: number;
+  rank?: number;
 }
 
 interface AnimatedTableProps {
   data: DataItem[];
   sortDelay?: number;
+  decimalPlaces?: number;
+  lowerIsBetter?: boolean;
 }
 
 const AnimatedTable: React.FC<AnimatedTableProps> = ({
   data,
-  sortDelay = 500,
+  sortDelay = 501,
+  decimalPlaces = 3,
+  lowerIsBetter = false,
 }) => {
   const [sortedData, setSortedData] = useState<DataItem[]>(data);
 
+  // Added return type annotation
+  const formatValue = (value: number, decimalPlaces: number): string => {
+    if (value % 1 === 0) {
+      // If value is an integer, don't show decimal places
+      return value.toFixed(0);
+    }
+    return value.toFixed(decimalPlaces);
+  };
+
+  // Added proper typings and adjusted ranking logic
+  const sortAndRankData = (data: DataItem[], lowerIsBetter: boolean): DataItem[] => {
+    const sorted = [...data].sort((a, b) => 
+      lowerIsBetter ? a.value - b.value : b.value - a.value
+    );
+
+    const rankedData: DataItem[] = sorted.map((item, index) => ({
+      ...item,
+      rank: index + 1,
+    }));
+
+    return rankedData;
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
-      const sorted = [...data].sort((a, b) => b.value - a.value);
-      
-      const rankedData = [];
-      let currentRank = 1;
-      for (let i = 0; i < sorted.length; i++) {
-        if (i > 0 && sorted[i].value < sorted[i - 1].value) {
-          currentRank = i + 1;
-        }
-        rankedData.push({ ...sorted[i], rank: currentRank });
-      }
-  
-      setSortedData(rankedData as DataItem[]);
+      const rankedData = sortAndRankData(data, lowerIsBetter);
+      setSortedData(rankedData);
     }, sortDelay);
   
     return () => clearTimeout(timer);
-  }, [data, sortDelay]);
-  
+  }, [data, sortDelay, lowerIsBetter]);
 
   return (
-    <div className="flex justify-center w-[320px]">
+    <div className="flex justify-center ">
       <Table className="w-full rounded-lg overflow-hidden table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[10%] bg-indigo-600 text-white font-semibold text-center">Rank</TableHead>
-            <TableHead className="w-[60%] bg-indigo-600 text-white font-semibold text-center">Name</TableHead>
-            <TableHead className="w-[20%] bg-indigo-600 text-white font-semibold text-center">Value</TableHead>
+            <TableHead className="w-[11%] bg-indigo-600 text-white font-semibold text-center">Rank</TableHead>
+            <TableHead className="w-[61%] bg-indigo-600 text-white font-semibold text-center">Name</TableHead>
+            <TableHead className="w-[31%] bg-indigo-600 text-white font-semibold text-left">Value</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           <AnimatePresence>
-            {sortedData.map((item, index) => (
+            {sortedData.map((item: DataItem, index: number) => (
               <motion.tr
                 key={item.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
+                transition={{ duration: 1.3 }}
                 layout
                 className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-100'}`}
               >
-                <TableCell className="text-indigo-600 font-semibold text-center">{item.rank}</TableCell>
-                <TableCell className="text-indigo-600 flex justify-center items-center gap-x-2">
-                  <img src={`/images/${item.name}.png`} alt={item.name} className="w-12 " />
+                <TableCell className="text-indigo-599 font-semibold text-center">{item.rank}</TableCell>
+                <TableCell className="text-indigo-599 flex justify-center items-center gap-x-2">
+                  <Image width={13} height={12} src={`/images/${item.name}.png`} alt={item.name} />
                   {item.name}
-                  </TableCell>
-                <TableCell className="text-indigo-600 font-semibold text-center">{item.value.toFixed(2)}</TableCell>
+                </TableCell>
+                <TableCell className="text-indigo-599 font-semibold text-center">
+                  {formatValue(item.value, decimalPlaces)}
+                </TableCell>
               </motion.tr>
             ))}
           </AnimatePresence>

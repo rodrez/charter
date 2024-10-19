@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useRef, useState, useCallback } from "react";
-import { motion, useAnimation, AnimatePresence, useMotionValue } from "framer-motion";
+import { motion, useAnimation, AnimatePresence } from "framer-motion";
 import type { LineChartProps } from "@/lib/types/line-chart";
 import styles from './line-chart.module.css';
 
@@ -30,10 +30,14 @@ const LineChart: React.FC<LineChartProps> = ({
   isZoomed,
   aspectRatio = 16 / 6, // This creates a longer chart (you can adjust this further if needed)
   minHeight = 400, // Minimum height in pixels
+  xAxisTitle = "X Axis",
+  yAxisTitle = "Y Axis",
+  axisTitleColor = "black",
+  maxValueAxis = 'y', // Default to 'y' for backwards compatibility
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const margin = { top: 20, right: 40, bottom: 30, left: 60 }; // Increased left and right margins
+  const margin = { top: 20, right: 40, bottom: 50, left: 60 }; // Increased bottom margin
   const [showDecimals, setShowDecimals] = useState(initialShowDecimals);
   const [decimalPlaces, setDecimalPlaces] = useState(initialDecimalPlaces);
   const [focusedSeries, setFocusedSeries] = useState<number | null>(null);
@@ -51,8 +55,11 @@ const LineChart: React.FC<LineChartProps> = ({
     const handleResize = () => {
       if (containerRef.current) {
         const { width } = containerRef.current.getBoundingClientRect();
-        const height = Math.max((width / aspectRatio) * 0.6, minHeight); // Adjusted to 60% of calculated height
-        setDimensions({ width, height });
+        const height = Math.max((width / aspectRatio) * 0.6, minHeight);
+        setDimensions({ 
+          width, 
+          height: height + margin.top + margin.bottom // Add top and bottom margins to total height
+        });
       }
     };
 
@@ -60,7 +67,7 @@ const LineChart: React.FC<LineChartProps> = ({
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [aspectRatio, minHeight]);
+  }, [aspectRatio, minHeight, margin.top, margin.bottom]);
 
   // Update state when props change
   useEffect(() => {
@@ -140,13 +147,14 @@ const LineChart: React.FC<LineChartProps> = ({
           return `M ${point.x} ${point.y}`;
         }
 
-        if (curved) {
+        if (curved && index > 0) {
           const prevPoint = points[index - 1];
-          const midX = (prevPoint.x + point.x) / 2;
-          return `${path} C ${midX} ${prevPoint.y}, ${midX} ${point.y}, ${point.x} ${point.y}`;
-        } else {
-          return `${path} L ${point.x} ${point.y}`;
+          if (prevPoint) {
+            const midX = (prevPoint.x + point.x) / 2;
+            return `${path} C ${midX} ${prevPoint.y}, ${midX} ${point.y}, ${point.x} ${point.y}`;
+          }
         }
+        return `${path} L ${point.x} ${point.y}`;
       }, "");
 
       return {
@@ -169,7 +177,7 @@ const LineChart: React.FC<LineChartProps> = ({
       const y = height - ((value - yMin) / (yMax - yMin)) * height;
       return { value, y };
     });
-  }, [yMin, yMax, height, formatAxisValue]);
+  }, [yMin, yMax, height ]);
 
   // Update the xAxisTicks generation
   const xAxisTicks = useMemo(() => {
@@ -179,20 +187,19 @@ const LineChart: React.FC<LineChartProps> = ({
       const x = ((value - xMin) / (xMax - xMin)) * width;
       return { value, x };
     });
-  }, [xMin, xMax, width, formatAxisValue]);
+  }, [xMin, xMax, width]);
 
-  const pathRefs = useRef([]);
-  const [animationProgress, setAnimationProgress] = useState(
+  const pathRefs = useRef<(SVGPathElement | null)[]>([]);
+  const [animationProgress, setAnimationProgress] = useState<number[]>(
     Array(updatedDataSeries.length).fill(0),
   );
 
-  const getPointAtLength = (path, length) => {
+  const getPointAtLength = (path: SVGPathElement, length: number) => {
     const point = path.getPointAtLength(length);
     return { x: point.x, y: point.y };
   };
 
   useEffect(() => {
-
     const animateLines = async () => {
       setIsAnimating(true);
       if (staggered) {
@@ -210,13 +217,15 @@ const LineChart: React.FC<LineChartProps> = ({
           // This shouldn't happen until the above await is complete
 
           await controls.start(i.toString());
-          
-          // Use the ref to call the latest version of onAnimationComplete
-          onAnimationCompleteRef.current?.({
+
+          if (pathDataArray[i]) {
+            // Use the ref to call the latest version of onAnimationComplete
+            onAnimationCompleteRef.current?.({
             id: `series-${i}`,
-            name: pathDataArray[i].title || `Series ${i + 1}`,
-            value: Math.max(...pathDataArray[i].data.map(point => point.y)),
-          });
+            name: pathDataArray[i]?.title ?? `Series ${i + 1}`,
+            value: Math.max(...(pathDataArray[i]?.data?.map((point) => point[maxValueAxis]) ?? [])),
+            });
+          }
           
           
         }
@@ -226,12 +235,14 @@ const LineChart: React.FC<LineChartProps> = ({
       }
       setCurrentlyAnimatingSeries(null);
       setIsAnimating(false);
+      await new Promise((resolve) => setTimeout(resolve, delay * 1000));
+      setFocusedSeries(null); // Add this line to remove focus after animation
     };
 
     if (pathDataArray.length > 0) {
-      animateLines();
+      void animateLines();
     }
-  }, [controls, staggered, delay, pathDataArray]);
+  }, [controls, staggered, delay, pathDataArray, maxValueAxis, showDecimals, decimalPlaces]);
 
 
   // Memoize the axis elements
@@ -275,21 +286,45 @@ const LineChart: React.FC<LineChartProps> = ({
             )}
           </g>
         ))}
+
+        {/* X-axis title */}
+        <text
+          x={width / 2}
+          y={height + margin.bottom - 10} // Adjusted position
+          textAnchor="middle"
+          fill={axisTitleColor}
+          fontSize="14"
+          
+        >
+          {xAxisTitle}
+        </text>
+
+        {/* Y-axis title */}
+        <text
+          x={-height / 2}
+          y={-margin.left + 15}
+          textAnchor="middle"
+          fill={axisTitleColor}
+          fontSize="14"
+          transform={`rotate(-90) translate(0, -5)`}
+        >
+          {yAxisTitle}
+        </text>
       </>
     );
-  }, [height, width, axisColor, yAxisTicks, showHorizontalGridLines, horizontalGridLineColor, formatAxisValue]);
+  }, [height, width, axisColor, yAxisTicks, showHorizontalGridLines, horizontalGridLineColor, formatAxisValue, xAxisTitle, yAxisTitle, axisTitleColor, margin.bottom, margin.left, showDecimals, decimalPlaces]);
 
-  const [labelDimensions, setLabelDimensions] = useState<{ [key: number]: { width: number, height: number } }>({});
+  const [labelDimensions, setLabelDimensions] = useState<Record<number, { width: number, height: number }>>({});
 
   useEffect(() => {
     // Calculate label dimensions after the component mounts
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     document.body.appendChild(svg);
     
-    const dimensions = {};
+    const dimensions: Record<number, { width: number, height: number }> = {};
     pathDataArray.forEach((series, index) => {
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.textContent = series.label;
+      text.textContent = series.label ?? ''; // Use empty string as fallback
       text.setAttribute('font-size', '12px');
       svg.appendChild(text);
       const bbox = text.getBBox();
@@ -332,7 +367,7 @@ const LineChart: React.FC<LineChartProps> = ({
     if (focusedSeries === null) return pathDataArray;
     return [
       ...pathDataArray.filter((_, index) => index !== focusedSeries),
-      pathDataArray[focusedSeries]
+      ...(focusedSeries !== undefined && focusedSeries < pathDataArray.length ? [pathDataArray[focusedSeries]] : [])
     ];
   }, [pathDataArray, focusedSeries]);
 
@@ -372,21 +407,15 @@ const LineChart: React.FC<LineChartProps> = ({
           ))}
 
           {/* Chart lines and labels */}
-          {sortedPathDataArray.map((series, index) => {
-            const originalIndex = pathDataArray.indexOf(series);
+          {sortedPathDataArray.map((series) => {
+            const originalIndex = pathDataArray.findIndex(s => s === series);
+            if (originalIndex === -1 || !series) return null; 
             return (
-              <g 
-                key={originalIndex} 
-                className={
-                  (focusedSeries === null && !isAnimating) || 
-                  focusedSeries === originalIndex || 
-                  currentlyAnimatingSeries === originalIndex 
-                    ? '' 
-                    : styles.unfocused
-                }
-              >
+              <g key={originalIndex}>
                 <motion.path
-                  ref={(el) => (pathRefs.current[originalIndex] = el)}
+                  ref={(el) => {
+                    if (el) pathRefs.current[originalIndex] = el;
+                  }}
                   d={series.pathData}
                   fill="none"
                   stroke={series.color}
@@ -398,13 +427,13 @@ const LineChart: React.FC<LineChartProps> = ({
                     [originalIndex.toString()]: { pathLength: 1 },
                   }}
                   transition={{
-                    duration: series.animationDuration || 4,
+                    duration: series.animationDuration ?? 4,
                     ease: "easeInOut",
                   }}
                   onUpdate={(latest) => {
-                    setAnimationProgress((prev) => {
+                    setAnimationProgress((prev: number[]): number[] => {
                       const newProgress = [...prev];
-                      newProgress[originalIndex] = latest.pathLength;
+                      newProgress[originalIndex] = latest.pathLength as number;
                       return newProgress;
                     });
                   }}
@@ -417,7 +446,9 @@ const LineChart: React.FC<LineChartProps> = ({
                   >
                     {(() => {
                       const path = pathRefs.current[originalIndex];
-                      const progress = animationProgress[originalIndex];
+                      if (!path) return null;
+
+                      const progress = animationProgress[originalIndex] ?? 0;
                       const { x, y } = getPointAtLength(
                         path,
                         progress * path.getTotalLength(),
@@ -427,7 +458,7 @@ const LineChart: React.FC<LineChartProps> = ({
                       if (progress > 0) {
                         let labelX = x;
                         let labelY = y;
-                        const labelDim = labelDimensions[originalIndex] || { width: 60, height: 20 };
+                        const labelDim = labelDimensions[originalIndex] ?? { width: 60, height: 20 };
                         const padding = 6;
                         const boxWidth = Math.max(labelDim.width, 100) + padding * 2;
                         const boxHeight = Math.max(labelDim.height, 40) + padding * 2;
@@ -477,7 +508,7 @@ const LineChart: React.FC<LineChartProps> = ({
                                 height={boxHeight}
                                 rx="4"
                                 ry="4"
-                                fill={series.labelBackgroundColor || labelBackgroundColor}
+                                fill={series.labelBackgroundColor ?? labelBackgroundColor}
                               />
                               {/* Render the labelComponent if provided */}
                               {series.labelComponent ? (
@@ -487,7 +518,7 @@ const LineChart: React.FC<LineChartProps> = ({
                                   width={boxWidth}
                                   height={boxHeight}
                                 >
-                                  <div xmlns="http://www.w3.org/1999/xhtml">
+                                  <div>
                                     {series.labelComponent}
                                   </div>
                                 </foreignObject>
@@ -500,7 +531,7 @@ const LineChart: React.FC<LineChartProps> = ({
                                   fontSize="12"
                                   fill={labelColor}
                                 >
-                                  {series.label}
+                                  {series.label ?? ''}
                                 </text>
                               )}
                             </g>
@@ -563,7 +594,7 @@ const LineChart: React.FC<LineChartProps> = ({
                         fontSize="12"
                         fill={legendTextColor}
                       >
-                        {series.title || 'Untitled'}
+                        {series.title ?? 'Untitled'}
                       </text>
                     </g>
                   );

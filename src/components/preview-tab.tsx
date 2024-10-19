@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { FixedSizeList as List, ListChildComponentProps } from 'react-window';
+import { FixedSizeList as List, type ListChildComponentProps } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import {
   Table,
@@ -24,26 +24,23 @@ const ROW_HEIGHT = 35;
 // Number of rows to display in the viewport
 const VISIBLE_ROW_COUNT = 20;
 
-// Row Renderer Component
-const RowRenderer = React.memo(
-  ({
-    index,
-    style,
-    data,
-  }: ListChildComponentProps & { data: string[][] }) => {
+// Adjust the RowRenderer component
+const RowRenderer: React.FC<ListChildComponentProps<string[][]>> = React.memo(
+  ({ index, style, data }) => {
     const row = data[index];
+
     return (
       <TableRow style={style} key={index} className="align-middle">
-        {row.map((cell, cellIndex) => (
+        {row?.map((cell: string, cellIndex: number) => (
           <TableCell
             key={cellIndex}
             style={{
               width: COLUMN_WIDTHS[cellIndex],
               minWidth: COLUMN_WIDTHS[cellIndex],
               maxWidth: COLUMN_WIDTHS[cellIndex],
-              padding: '8px', // Consistent padding
+              padding: '8px',
             }}
-            className="text-left" // Adjust alignment as needed
+            className="text-left"
           >
             {cell}
           </TableCell>
@@ -58,53 +55,63 @@ RowRenderer.displayName = "RowRenderer";
 
 // Memoize the entire component to prevent unnecessary re-renders
 const PreviewTab: React.FC<PreviewTabProps> = React.memo(({ rawData }) => {
+  const isRawDataValid = Array.isArray(rawData) && rawData.length > 0;
+
   // Memoize headers to avoid recalculating on every render
-  const headers = useMemo(() => rawData[0], [rawData]);
+  const headers = useMemo(() => {
+    return isRawDataValid ? rawData[0] : [];
+  }, [rawData, isRawDataValid]);
 
   // Memoize rows excluding headers
-  const rows = useMemo(() => rawData.slice(1), [rawData]);
+  const rows = useMemo(() => {
+    return isRawDataValid ? rawData.slice(1) : [];
+  }, [rawData, isRawDataValid]);
+
+  if (!isRawDataValid) {
+    return (
+      <p className="text-center text-gray-500">
+        No data loaded. Please import a CSV file.
+      </p>
+    );
+  }
 
   return (
     <div className="overflow-x-auto max-h-[400px]">
-      {rawData.length > 1 ? (
-        <Table className="w-full table-fixed">
-          <TableHeader>
-            <TableRow className="align-middle">
-              {headers.map((header, index) => (
-                <TableHead
-                  key={index}
-                  style={{
-                    width: COLUMN_WIDTHS[index],
-                    minWidth: COLUMN_WIDTHS[index],
-                    maxWidth: COLUMN_WIDTHS[index],
-                    padding: '8px', // Consistent padding
-                  }}
-                  className="text-left" // Adjust alignment as needed
-                >
-                  {header}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <AutoSizer disableHeight>
-              {({ width }) => (
-                <List
-                  height={ROW_HEIGHT * VISIBLE_ROW_COUNT}
-                  itemCount={rows.length}
-                  itemSize={ROW_HEIGHT}
-                  width={width}
-                  itemData={rows}
-                >
-                  {RowRenderer}
-                </List>
-              )}
-            </AutoSizer>
-          </TableBody>
-        </Table>
-      ) : (
-        <p className="text-center text-gray-500">No data loaded. Please import a CSV file.</p>
-      )}
+      <Table className="w-full table-fixed">
+        <TableHeader>
+          <TableRow className="align-middle">
+            {headers?.map((header: string, index: number) => (
+              <TableHead
+                key={index}
+                style={{
+                  width: COLUMN_WIDTHS[index],
+                  minWidth: COLUMN_WIDTHS[index],
+                  maxWidth: COLUMN_WIDTHS[index],
+                  padding: '8px',
+                }}
+                className="text-left"
+              >
+                {header}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <AutoSizer disableHeight>
+            {({ width }) => (
+              <List
+                height={ROW_HEIGHT * VISIBLE_ROW_COUNT}
+                itemCount={rows.length}
+                itemSize={ROW_HEIGHT}
+                width={width}
+                itemData={rows}
+              >
+                {RowRenderer}
+              </List>
+            )}
+          </AutoSizer>
+        </TableBody>
+      </Table>
     </div>
   );
 });

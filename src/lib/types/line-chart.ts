@@ -1,7 +1,7 @@
 export interface DataSeries {
   title: string;
   color: string;
-  data: number[];
+  data: { x: number; y: number }[];
   label: string;
   animationDuration: number;
   labelPosition?: "top" | "bottom" | "left" | "right" | "topLeft" | "topRight" | "bottomLeft" | "bottomRight";
@@ -9,6 +9,8 @@ export interface DataSeries {
 }
 
 export interface LineChartProps {
+  children?: React.ReactNode;
+  maxValueAxis: 'x' | 'y';
   dataSeries: DataSeries[];
   staggered?: boolean;
   delay?: number;
@@ -34,4 +36,7 @@ export interface LineChartProps {
   isZoomed?: boolean;
   aspectRatio?: number;
   minHeight?: number;
+  xAxisTitle?: string;
+  yAxisTitle?: string;
+  axisTitleColor?: string;
 }

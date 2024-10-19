@@ -5,9 +5,12 @@ import DataTab from './data-tab';
 import PreviewTab from './preview-tab';
 import ColorsTab from './colors-tab';
 import OptionsTab from './options-tab';
+import type { DataSeries } from '@/lib/types/line-chart';
 
 interface ChartControlsProps {
-  data: any[];
+  maxValueAxis: 'x' | 'y';
+  setMaxValueAxis: (axis: 'x' | 'y') => void;
+  data: DataSeries[];
   rawData: string[][];
   handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   chartBackgroundColor: string;
@@ -52,9 +55,17 @@ interface ChartControlsProps {
   setUseFirstColumnAsX: (use: boolean) => void;
   strokeWidth: number;
   setStrokeWidth: (width: number) => void;
+  xAxisTitle: string;
+  yAxisTitle: string;
+  axisTitleColor: string;
+  setXAxisTitle: (title: string) => void;
+  setYAxisTitle: (title: string) => void;
+  setAxisTitleColor: (color: string) => void;
 }
 
 const ChartControls: React.FC<ChartControlsProps> = ({
+  maxValueAxis,
+  setMaxValueAxis,
   isZoomed,
   setIsZoomed,
   yAxisPadding,
@@ -100,6 +111,12 @@ const ChartControls: React.FC<ChartControlsProps> = ({
   setDecimalPlaces,
   strokeWidth,
   setStrokeWidth,
+  xAxisTitle,
+  yAxisTitle,
+  axisTitleColor,
+  setXAxisTitle,
+  setYAxisTitle,
+  setAxisTitleColor,
 }) => {
   return (
     <Card className="mb-8" style={{ backgroundColor: chartBackgroundColor }}>
@@ -116,6 +133,7 @@ const ChartControls: React.FC<ChartControlsProps> = ({
           </TabsList>
           <TabsContent value="data">
             <DataTab data={data} handleFileUpload={handleFileUpload} />
+            
           </TabsContent>
           <TabsContent value="preview">
             <PreviewTab rawData={rawData} />
@@ -123,31 +141,36 @@ const ChartControls: React.FC<ChartControlsProps> = ({
           <TabsContent value="colors">
             <ColorsTab
               chartBackgroundColor={chartBackgroundColor}
+              axisTitleColor={axisTitleColor}
+              setAxisTitleColor={setAxisTitleColor}
               axisColor={axisColor}
               labelColor={labelColor}
               labelBackgroundColor={labelBackgroundColor}
               legendBackgroundColor={legendBackgroundColor}
               legendTextColor={legendTextColor}
               dataLineColors={dataLineColors}
+              horizontalGridLineColor={horizontalGridLineColor}
               setChartBackgroundColor={setChartBackgroundColor}
               setAxisColor={setAxisColor}
-              horizontalGridLineColor={horizontalGridLineColor}
-              setHorizontalGridLineColor={setHorizontalGridLineColor}
               setLabelColor={setLabelColor}
               setLabelBackgroundColor={setLabelBackgroundColor}
               setLegendBackgroundColor={setLegendBackgroundColor}
               setLegendTextColor={setLegendTextColor}
               setDataLineColors={setDataLineColors}
+              setHorizontalGridLineColor={setHorizontalGridLineColor}
             />
           </TabsContent>
           <TabsContent value="options">
             <OptionsTab
+              xAxisTitle={xAxisTitle}
+              yAxisTitle={yAxisTitle}
+              setXAxisTitle={setXAxisTitle}
+              setYAxisTitle={setYAxisTitle}
               yAxisPadding={yAxisPadding}
               xAxisPadding={xAxisPadding}
               showLegend={showLegend}
               staggered={staggered}
               delay={delay}
-              curved={curved}
               skipZeroes={skipZeroes}
               showHorizontalGridLines={showHorizontalGridLines}
               setShowLegend={setShowLegend}
@@ -157,6 +180,7 @@ const ChartControls: React.FC<ChartControlsProps> = ({
               setStaggered={setStaggered}
               setDelay={setDelay}
               setCurved={setCurved}
+              curved={curved}
               setShowHorizontalGridLines={setShowHorizontalGridLines}
               useFirstColumnAsX={useFirstColumnAsX}
               setUseFirstColumnAsX={setUseFirstColumnAsX}
@@ -168,6 +192,8 @@ const ChartControls: React.FC<ChartControlsProps> = ({
               setStrokeWidth={setStrokeWidth}
               setYAxisPadding={setYAxisPadding}
               setXAxisPadding={setXAxisPadding}
+              maxValueAxis={maxValueAxis}
+              setMaxValueAxis={setMaxValueAxis}
             />
           </TabsContent>
         </Tabs>

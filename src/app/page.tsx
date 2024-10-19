@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import Papa from "papaparse";
 import ChartControls from "@/components/chart-controls";
 import type { DataSeries } from "@/lib/types/line-chart";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"; // Add this import
 
 
 // Custom component that renders an image
-const ImageLabelComponent = ({ src, lastNum }: { src: string, lastNum: number }) => (
+const ImageLabelComponent = ({ src }: { src: string}) => (
   <div className="flex items-center justify-center" style={{ width: '100%', height: '100%' }}>
       <Image
         src={src}
@@ -48,15 +48,15 @@ export default function TestPage() {
   const [yAxisPadding, setYAxisPadding] = useState(0.1);
   const [xAxisPadding, setXAxisPadding] = useState(0.05);
   const [strokeWidth, setStrokeWidth] = useState(2);
+  const [xAxisTitle, setXAxisTitle] = useState("X Axis");
+  const [yAxisTitle, setYAxisTitle] = useState("Y Axis");
+  const [axisTitleColor, setAxisTitleColor] = useState("#000000");
   const [tableData, setTableData] = useState<{ id: string; name: string; value: number }[]>([]);
   const [completedAnimations, setCompletedAnimations] = useState<Set<string>>(new Set());
   const [isZoomed, setIsZoomed] = useState(false);
   const [loadedData, setLoadedData] = useState<DataSeries[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
-
-  useEffect(() => {
-    console.log("tableData updated:", tableData);
-  }, [tableData]);
+  const [maxValueAxis, setMaxValueAxis] = useState<'x' | 'y'>('x');
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -75,21 +75,23 @@ export default function TestPage() {
               const startIndex = useFirstColumnAsX ? 1 : 0;
               const xAxisLabels = useFirstColumnAsX ? parsedData.slice(1).map(row => row[0]) : null;
               
-              for (let i = startIndex; i < headers.length; i++) {
-                const dataPoints = parsedData.slice(1).map((row, rowIndex) => {
-                  const x = useFirstColumnAsX ? parseFloat(row[0]) : rowIndex;
-                  const y = parseFloat(row[i]);
+              for (let i = startIndex; i < (headers?.length ?? 0); i++) {
+                const dataPoints = parsedData.slice(1).map((row: string[], rowIndex: number) => {
+                  if (!row || row.length === 0) return null;
+
+                  const x = useFirstColumnAsX ? parseFloat(row[0] ?? '') : rowIndex;
+                  const y = parseFloat(row[i] ?? '');
                   return { 
                     x: isNaN(x) ? rowIndex : x, 
-                    y: isNaN(y) ? null : y  // Use null for invalid numbers
+                    y: isNaN(y) ? null : y
                   };
-                }).filter(point => point.y !== null);  // Filter out invalid points
+                }).filter((point): point is { x: number; y: number } => point !== null)
                 
                 if (dataPoints.length > 0) {
                   series.push({
-                    title: headers[i],
-                    label: headers[i],
-                    labelComponent: <ImageLabelComponent src={`/images/${headers[i]}.png`} lastNum={dataPoints[dataPoints.length - 1].y} />,
+                    title: headers?.[i] ?? '',
+                    label: headers?.[i] ?? '',
+                    labelComponent: <ImageLabelComponent src={`/images/${headers?.[i] ?? ''}.png`}/>,
                     color: dataLineColors[(i - startIndex) % dataLineColors.length],
                     data: dataPoints,
                     xAxisLabels: xAxisLabels,
@@ -103,7 +105,7 @@ export default function TestPage() {
             setLoadedData(series);
             setIsDataLoaded(true);
           },
-          error: (error: any) => console.error("Error:", error),
+          error: (error: Error) => console.error("Error:", error),
           header: false,
           dynamicTyping: false,
           skipEmptyLines: true,
@@ -128,7 +130,6 @@ export default function TestPage() {
   };
 
   const handleAnimationComplete = useCallback((maxValue: { id: string; name: string; value: number }) => {
-    console.log("Animation completed for:", maxValue);
     setTableData(prevData => {
       // Check if this animation has already been completed
       if (!completedAnimations.has(maxValue.id)) {
@@ -190,6 +191,14 @@ export default function TestPage() {
         setStrokeWidth={setStrokeWidth}
         isZoomed={isZoomed}
         setIsZoomed={setIsZoomed}
+        xAxisTitle={xAxisTitle}
+        yAxisTitle={yAxisTitle}
+        axisTitleColor={axisTitleColor}
+        setXAxisTitle={setXAxisTitle}
+        setYAxisTitle={setYAxisTitle}
+        setAxisTitleColor={setAxisTitleColor}
+        setMaxValueAxis={setMaxValueAxis}
+        maxValueAxis={maxValueAxis}
       />
 
       {isDataLoaded && (
@@ -207,6 +216,9 @@ export default function TestPage() {
         <div className="flex ">
           <div className="w-[80%]">
             <LineChart
+              aspectRatio={16 / 6}
+              maxValueAxis={maxValueAxis}
+              minHeight={400}
               dataSeries={data}
               showLegend={showLegend}
               staggered={staggered}
@@ -228,14 +240,17 @@ export default function TestPage() {
               strokeWidth={strokeWidth}
               onAnimationComplete={handleAnimationComplete}
               isZoomed={isZoomed}
+              xAxisTitle={xAxisTitle}
+              yAxisTitle={yAxisTitle}
+              axisTitleColor={axisTitleColor}
             />
           </div>
           <div className="w-[20%]">
-            <AnimatedTable data={tableData} />
+            <AnimatedTable data={tableData} decimalPlaces={decimalPlaces} lowerIsBetter={true} />
           </div>
         </div>
       ) : (
-        <p className="h-[90vh]">No valid data to display. Please upload a CSV file with numeric data and click "Start Animation".</p>
+        <p className="h-[90vh]">No valid data to display. Please upload a CSV file with numeric data and click &quot;Start Animation&quot;.</p>
       )}
     </div>
   );

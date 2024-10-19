@@ -1,8 +1,10 @@
 import React from 'react';
 import { Input } from "@/components/ui/input";
 
+import type { DataSeries } from '@/lib/types/line-chart';
+
 interface DataTabProps {
-  data: any[];
+  data: DataSeries[];
   handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 

@@ -30,9 +30,17 @@ interface OptionsTabProps {
   setStrokeWidth: (width: number) => void;
   isZoomed: boolean;
   setIsZoomed: (isZoomed: boolean) => void;
+  xAxisTitle: string;
+  yAxisTitle: string;
+  setXAxisTitle: (title: string) => void;
+  setYAxisTitle: (title: string) => void;
+  maxValueAxis: 'x' | 'y';
+  setMaxValueAxis: (axis: 'x' | 'y') => void;
 }
 
 const OptionsTab: React.FC<OptionsTabProps> = ({
+  maxValueAxis,
+  setMaxValueAxis,
   isZoomed,
   setIsZoomed,
   showLegend,
@@ -59,6 +67,10 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
   setXAxisPadding,
   strokeWidth,
   setStrokeWidth,
+  xAxisTitle,
+  yAxisTitle,
+  setXAxisTitle,
+  setYAxisTitle,
 }) => {
   return (
     <div className="space-y-8">
@@ -79,6 +91,13 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
           <SwitchOption id="use-first-column-as-x" checked={useFirstColumnAsX} onCheckedChange={setUseFirstColumnAsX} label="Use First Column as X" />
           <SwitchOption id="show-decimals" checked={showDecimals} onCheckedChange={setShowDecimals} label="Show Decimals" />
           <NumberInput id="decimal-places" value={decimalPlaces} onChange={setDecimalPlaces} label="Decimal Places" />
+          <Input id="x-axis-title" value={xAxisTitle} onChange={(e) => setXAxisTitle(e.target.value)} />
+          <Input id="y-axis-title" value={yAxisTitle} onChange={(e) => setYAxisTitle(e.target.value)} />
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="max-value-axis">Max Value Axis for Table</Label>
+            <SwitchOption id="max-value-axis" checked={maxValueAxis === 'x'} onCheckedChange={(checked) => setMaxValueAxis(checked ? 'x' : 'y')} label={maxValueAxis === 'x' ? 'Using X Axis' : 'Using Y Axis'} />
+          </div>
+
         </div>
       </div>
 
