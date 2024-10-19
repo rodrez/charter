@@ -28,8 +28,8 @@ const LineChart: React.FC<LineChartProps> = ({
   strokeWidth = 2,
   onAnimationComplete,
   isZoomed,
-  aspectRatio = 16 / 6, // This creates a longer chart (you can adjust this further if needed)
-  minHeight = 400, // Minimum height in pixels
+  aspectRatio = 16 / 6,
+  minHeight = 400,
   xAxisTitle = "X Axis",
   yAxisTitle = "Y Axis",
   axisTitleColor = "black",
@@ -55,7 +55,18 @@ const LineChart: React.FC<LineChartProps> = ({
     const handleResize = () => {
       if (containerRef.current) {
         const { width } = containerRef.current.getBoundingClientRect();
-        const height = Math.max((width / aspectRatio) * 0.6, minHeight);
+        let height: number;
+
+        if (typeof minHeight === 'string' && minHeight.endsWith('%')) {
+          // If minHeight is a percentage, calculate it based on the viewport height
+          const percentage = parseFloat(minHeight) / 100;
+          height = Math.max((width / aspectRatio) * 0.6, window.innerHeight * percentage);
+        } else {
+          // If minHeight is a number or a pixel value, use it directly
+          const minHeightNumber = typeof minHeight === 'string' ? parseFloat(minHeight) : minHeight;
+          height = Math.max((width / aspectRatio) * 0.6, minHeightNumber);
+        }
+
         setDimensions({ 
           width, 
           height: height + margin.top + margin.bottom // Add top and bottom margins to total height
@@ -362,14 +373,16 @@ const LineChart: React.FC<LineChartProps> = ({
     }
   };
 
-  // Sort the pathDataArray to bring the focused series to the end (top)
+  // Modify the sortedPathDataArray to consider both focusedSeries and currentlyAnimatingSeries
   const sortedPathDataArray = useMemo(() => {
-    if (focusedSeries === null) return pathDataArray;
+    if (focusedSeries === null && currentlyAnimatingSeries === null) return pathDataArray;
+    // const activeIndex = focusedSeries !== null ? focusedSeries : currentlyAnimatingSeries;
+    const activeIndex = currentlyAnimatingSeries ?? focusedSeries;
     return [
-      ...pathDataArray.filter((_, index) => index !== focusedSeries),
-      ...(focusedSeries !== undefined && focusedSeries < pathDataArray.length ? [pathDataArray[focusedSeries]] : [])
+      ...pathDataArray.filter((_, index) => index !== activeIndex),
+      ...(activeIndex !== null && activeIndex < pathDataArray.length ? [pathDataArray[activeIndex]] : [])
     ];
-  }, [pathDataArray, focusedSeries]);
+  }, [pathDataArray, focusedSeries, currentlyAnimatingSeries]);
 
   return (
     <div ref={containerRef} style={{ width: '100%', height: `${dimensions.height}px` }}>
@@ -437,6 +450,13 @@ const LineChart: React.FC<LineChartProps> = ({
                       return newProgress;
                     });
                   }}
+                  className={
+                    (focusedSeries === null && currentlyAnimatingSeries === null) || 
+                    focusedSeries === originalIndex || 
+                    currentlyAnimatingSeries === originalIndex 
+                      ? '' 
+                      : styles.unfocused
+                  }
                 />
                 {pathRefs.current[originalIndex] && (
                   <motion.g

@@ -90,7 +90,7 @@ const AnimatedTable: React.FC<AnimatedTableProps> = ({
               >
                 <TableCell className="text-indigo-599 font-semibold text-center">{item.rank}</TableCell>
                 <TableCell className="text-indigo-599 flex justify-center items-center gap-x-2">
-                  <Image width={13} height={12} src={`/images/${item.name}.png`} alt={item.name} />
+                  <Image width={48} height={48} src={`/images/${item.name}.png`} alt={item.name} />
                   {item.name}
                 </TableCell>
                 <TableCell className="text-indigo-599 font-semibold text-center">

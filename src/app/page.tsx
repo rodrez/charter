@@ -1,14 +1,13 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import Papa from "papaparse";
 import ChartControls from "@/components/chart-controls";
 import type { DataSeries } from "@/lib/types/line-chart";
 import LineChart from "@/components/line-chart/line-chart";
 import Image from "next/image";
 import AnimatedTable from "./rank-table";
-import { Button } from "@/components/ui/button"; // Add this import
-
+import { Button } from "@/components/ui/button"; 
 
 // Custom component that renders an image
 const ImageLabelComponent = ({ src }: { src: string}) => (
@@ -57,6 +56,9 @@ export default function TestPage() {
   const [loadedData, setLoadedData] = useState<DataSeries[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [maxValueAxis, setMaxValueAxis] = useState<'x' | 'y'>('x');
+  const [isAnimationStarted, setIsAnimationStarted] = useState(false);
+  const [isChartZoomed, setIsChartZoomed] = useState(false);
+  const [isTableZoomed, setIsTableZoomed] = useState(false);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -85,7 +87,7 @@ export default function TestPage() {
                     x: isNaN(x) ? rowIndex : x, 
                     y: isNaN(y) ? null : y
                   };
-                }).filter((point): point is { x: number; y: number } => point !== null)
+                }).filter((point): point is { x: number; y: number } => point !== null )
                 
                 if (dataPoints.length > 0) {
                   series.push({
@@ -102,7 +104,7 @@ export default function TestPage() {
               }
             }
             
-            setLoadedData(series);
+            setLoadedData(series.filter(s => s.data.length > 0));
             setIsDataLoaded(true);
           },
           error: (error: Error) => console.error("Error:", error),
@@ -117,13 +119,16 @@ export default function TestPage() {
   };
 
   const handleStartAnimation = () => {
+    console.log('loadedData', loadedData);
     setData(loadedData);
     setTableData([]);
+    setIsAnimationStarted(true);
   };
 
   const handleRestartAnimation = () => {
     setData([]);
     setTableData([]);
+    setIsAnimationStarted(true);
     setTimeout(() => {
       setData(loadedData);
     }, 100);
@@ -143,110 +148,153 @@ export default function TestPage() {
     });
   }, [completedAnimations]);
 
-  return (
-    <div className="mx-auto mt-8 px-4">
-      <ChartControls
-        yAxisPadding={yAxisPadding}
-        xAxisPadding={xAxisPadding}
-        setYAxisPadding={setYAxisPadding}
-        setXAxisPadding={setXAxisPadding}
-        showHorizontalGridLines={showHorizontalGridLines}
-        horizontalGridLineColor={horizontalGridLineColor}
-        data={data}
-        rawData={rawData}
-        handleFileUpload={handleFileUpload}
-        chartBackgroundColor={chartBackgroundColor}
-        axisColor={axisColor}
-        labelColor={labelColor}
-        labelBackgroundColor={labelBackgroundColor}
-        legendBackgroundColor={legendBackgroundColor}
-        legendTextColor={legendTextColor}
-        dataLineColors={dataLineColors}
-        showLegend={showLegend}
-        skipZeroes={skipZeroes}
-        staggered={staggered}
-        delay={delay}
-        curved={curved}
-        setChartBackgroundColor={setChartBackgroundColor}
-        setAxisColor={setAxisColor}
-        setLabelColor={setLabelColor}
-        setLabelBackgroundColor={setLabelBackgroundColor}
-        setLegendBackgroundColor={setLegendBackgroundColor}
-        setLegendTextColor={setLegendTextColor}
-        setDataLineColors={setDataLineColors}
-        setShowLegend={setShowLegend}
-        setSkipZeroes={setSkipZeroes}
-        setStaggered={setStaggered}
-        setDelay={setDelay}
-        setCurved={setCurved}
-        setShowHorizontalGridLines={setShowHorizontalGridLines}
-        setHorizontalGridLineColor={setHorizontalGridLineColor}
-        useFirstColumnAsX={useFirstColumnAsX}
-        setUseFirstColumnAsX={setUseFirstColumnAsX}
-        showDecimals={showDecimals}
-        setShowDecimals={setShowDecimals}
-        decimalPlaces={decimalPlaces}
-        setDecimalPlaces={setDecimalPlaces}
-        strokeWidth={strokeWidth}
-        setStrokeWidth={setStrokeWidth}
-        isZoomed={isZoomed}
-        setIsZoomed={setIsZoomed}
-        xAxisTitle={xAxisTitle}
-        yAxisTitle={yAxisTitle}
-        axisTitleColor={axisTitleColor}
-        setXAxisTitle={setXAxisTitle}
-        setYAxisTitle={setYAxisTitle}
-        setAxisTitleColor={setAxisTitleColor}
-        setMaxValueAxis={setMaxValueAxis}
-        maxValueAxis={maxValueAxis}
-      />
+  useEffect(() => {
+    if (isAnimationStarted) {
+      // Scroll to the chart when animation starts
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [isAnimationStarted]);
 
-      {isDataLoaded && (
-        <div className="mb-4 space-x-4">
-          <Button onClick={handleStartAnimation}>
-            Start Animation
-          </Button>
-          <Button onClick={handleRestartAnimation}>
-            Restart Animation
-          </Button>
-        </div>
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsChartZoomed(false);
+        setIsTableZoomed(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const handleChartZoom = () => setIsChartZoomed(!isChartZoomed);
+  const handleTableZoom = () => setIsTableZoomed(!isTableZoomed);
+
+  return (
+    <div className={`mx-auto ${isAnimationStarted ? 'mt-0 px-0' : 'mt-8 px-4'}`}>
+      {!isAnimationStarted && (
+        <>
+          <ChartControls
+            yAxisPadding={yAxisPadding}
+            xAxisPadding={xAxisPadding}
+            setYAxisPadding={setYAxisPadding}
+            setXAxisPadding={setXAxisPadding}
+            showHorizontalGridLines={showHorizontalGridLines}
+            horizontalGridLineColor={horizontalGridLineColor}
+            data={data}
+            rawData={rawData}
+            handleFileUpload={handleFileUpload}
+            chartBackgroundColor={chartBackgroundColor}
+            axisColor={axisColor}
+            labelColor={labelColor}
+            labelBackgroundColor={labelBackgroundColor}
+            legendBackgroundColor={legendBackgroundColor}
+            legendTextColor={legendTextColor}
+            dataLineColors={dataLineColors}
+            showLegend={showLegend}
+            skipZeroes={skipZeroes}
+            staggered={staggered}
+            delay={delay}
+            curved={curved}
+            setChartBackgroundColor={setChartBackgroundColor}
+            setAxisColor={setAxisColor}
+            setLabelColor={setLabelColor}
+            setLabelBackgroundColor={setLabelBackgroundColor}
+            setLegendBackgroundColor={setLegendBackgroundColor}
+            setLegendTextColor={setLegendTextColor}
+            setDataLineColors={setDataLineColors}
+            setShowLegend={setShowLegend}
+            setSkipZeroes={setSkipZeroes}
+            setStaggered={setStaggered}
+            setDelay={setDelay}
+            setCurved={setCurved}
+            setShowHorizontalGridLines={setShowHorizontalGridLines}
+            setHorizontalGridLineColor={setHorizontalGridLineColor}
+            useFirstColumnAsX={useFirstColumnAsX}
+            setUseFirstColumnAsX={setUseFirstColumnAsX}
+            showDecimals={showDecimals}
+            setShowDecimals={setShowDecimals}
+            decimalPlaces={decimalPlaces}
+            setDecimalPlaces={setDecimalPlaces}
+            strokeWidth={strokeWidth}
+            setStrokeWidth={setStrokeWidth}
+            isZoomed={isZoomed}
+            setIsZoomed={setIsZoomed}
+            xAxisTitle={xAxisTitle}
+            yAxisTitle={yAxisTitle}
+            axisTitleColor={axisTitleColor}
+            setXAxisTitle={setXAxisTitle}
+            setYAxisTitle={setYAxisTitle}
+            setAxisTitleColor={setAxisTitleColor}
+            setMaxValueAxis={setMaxValueAxis}
+            maxValueAxis={maxValueAxis}
+          />
+
+          {isDataLoaded && (
+            <div className="mb-4 space-x-4">
+              <Button onClick={handleStartAnimation}>
+                Start Animation
+              </Button>
+              <Button onClick={handleRestartAnimation}>
+                Restart Animation
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       {data.length > 0 && data.some(series => series.data.length > 0) ? (
-        <div className="flex ">
-          <div className="w-[80%]">
-            <LineChart
-              aspectRatio={16 / 6}
-              maxValueAxis={maxValueAxis}
-              minHeight={400}
-              dataSeries={data}
-              showLegend={showLegend}
-              staggered={staggered}
-              delay={delay}
-              axisColor={axisColor}
-              labelColor={labelColor}
-              skipZeroes={skipZeroes}
-              labelBackgroundColor={labelBackgroundColor}
-              chartBackgroundColor={chartBackgroundColor}
-              legendBackgroundColor={legendBackgroundColor}
-              legendTextColor={legendTextColor}
-              dataLineColors={dataLineColors}
-              curved={curved}
-              showHorizontalGridLines={showHorizontalGridLines}
-              horizontalGridLineColor={horizontalGridLineColor}
-              useFirstColumnAsX={useFirstColumnAsX}
-              showDecimals={showDecimals}
-              decimalPlaces={decimalPlaces}
-              strokeWidth={strokeWidth}
-              onAnimationComplete={handleAnimationComplete}
-              isZoomed={isZoomed}
-              xAxisTitle={xAxisTitle}
-              yAxisTitle={yAxisTitle}
-              axisTitleColor={axisTitleColor}
-            />
-          </div>
-          <div className="w-[20%]">
-            <AnimatedTable data={tableData} decimalPlaces={decimalPlaces} lowerIsBetter={true} />
+        <div className={`flex flex-col ${isAnimationStarted ? 'h-screen w-[99%] mx-auto my-1' : ''}`}>
+          {isAnimationStarted && (
+            <div className="flex justify-end space-x-2 mb-2">
+              <Button onClick={handleChartZoom}>
+                {isChartZoomed ? 'Exit Chart Fullscreen' : 'Chart Fullscreen'}
+              </Button>
+              <Button onClick={handleTableZoom}>
+                {isTableZoomed ? 'Exit Table Fullscreen' : 'Table Fullscreen'}
+              </Button>
+            </div>
+          )}
+          <div className={`flex ${isChartZoomed || isTableZoomed ? 'flex-col' : 'flex-row'} h-full`}>
+            <div className={`${isChartZoomed ? 'w-full h-full' : isTableZoomed ? 'hidden' : 'w-[75%] h-full'}`}>
+              <LineChart
+                aspectRatio={isAnimationStarted ? (isChartZoomed ? undefined : 16 / 9) : 16 / 6}
+                maxValueAxis={maxValueAxis}
+                minHeight={isAnimationStarted ? (isChartZoomed ? '95%' : '90%') : 400}
+                dataSeries={data}
+                showLegend={showLegend}
+                staggered={staggered}
+                delay={delay}
+                axisColor={axisColor}
+                labelColor={labelColor}
+                skipZeroes={skipZeroes}
+                labelBackgroundColor={labelBackgroundColor}
+                chartBackgroundColor={chartBackgroundColor}
+                legendBackgroundColor={legendBackgroundColor}
+                legendTextColor={legendTextColor}
+                dataLineColors={dataLineColors}
+                curved={curved}
+                showHorizontalGridLines={showHorizontalGridLines}
+                horizontalGridLineColor={horizontalGridLineColor}
+                useFirstColumnAsX={useFirstColumnAsX}
+                showDecimals={showDecimals}
+                decimalPlaces={decimalPlaces}
+                strokeWidth={strokeWidth}
+                onAnimationComplete={handleAnimationComplete}
+                isZoomed={isZoomed}
+                xAxisTitle={xAxisTitle}
+                yAxisTitle={yAxisTitle}
+                axisTitleColor={axisTitleColor}
+              />
+            </div>
+            {isAnimationStarted && (
+              <div className={`${isTableZoomed ? 'w-full h-full' : isChartZoomed ? 'hidden' : 'w-[25%] h-full'} overflow-auto`}>
+                <AnimatedTable data={tableData} decimalPlaces={decimalPlaces} lowerIsBetter={true} />
+              </div>
+            )}
           </div>
         </div>
       ) : (

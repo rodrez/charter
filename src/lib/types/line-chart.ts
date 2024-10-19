@@ -5,7 +5,7 @@ export interface DataSeries {
   label: string;
   animationDuration: number;
   labelPosition?: "top" | "bottom" | "left" | "right" | "topLeft" | "topRight" | "bottomLeft" | "bottomRight";
-  labelBackgroundColor?: string; // New property for custom background color
+  labelBackgroundColor?: string;
 }
 
 export interface LineChartProps {
@@ -35,7 +35,7 @@ export interface LineChartProps {
   onAnimationComplete?: (maxValues: { id: string; name: string; value: number }) => void;
   isZoomed?: boolean;
   aspectRatio?: number;
-  minHeight?: number;
+  minHeight?: number | string;
   xAxisTitle?: string;
   yAxisTitle?: string;
   axisTitleColor?: string;
