@@ -221,29 +221,25 @@ const LineChart: React.FC<LineChartProps> = ({
     const animateLines = async () => {
       if (isAnimatingRef.current) return;
       isAnimatingRef.current = true;
-
+  
       console.log('Animation started in LineChart');
       setIsAnimating(true);
+  
       if (staggered) {
-        // Add a 1-second delay before starting the animation
         await new Promise((resolve) => setTimeout(resolve, 2000));
-
+  
         for (let i = 0; i < pathDataArray.length; i++) {
           setCurrentlyAnimatingSeries(i);
           setFocusedSeries(i);
           useAnimationStore.setState({ focusedSeries: i });
-          
-          if (i === 1){
-            // NOTE: There's a bug with the animation that causes it to not work on the second line
-            // This is a workaround to wait for the animation to finish before starting the next one
+  
+          if (i === 1) {
             await new Promise((resolve) => setTimeout(resolve, 2500));
-            await controls.start(i.toString());
-            useAnimationStore.setState({ isLineBeingAnimated: true });
-          } else {
-            await controls.start(i.toString());
-            useAnimationStore.setState({ isLineBeingAnimated: true });
           }
-
+  
+          useAnimationStore.setState({ isLineBeingAnimated: true });
+          await controls.start(i.toString());
+  
           if (pathDataArray[i]) {
             onAnimationCompleteRef.current?.({
               id: `series-${i}`,
@@ -251,14 +247,12 @@ const LineChart: React.FC<LineChartProps> = ({
               value: Math.max(...(pathDataArray[i]?.data?.map((point) => point[maxValueAxis]) ?? [])),
             });
           }
-          
+  
+          useAnimationStore.setState({ isLineBeingAnimated: false });
+  
           if (i < pathDataArray.length - 1) {
-            useAnimationStore.setState({ isLineBeingAnimated: false });
             await new Promise((resolve) => setTimeout(resolve, delay * 1000));
-          }
-          // if the element is the last one, wait for 1 second before starting the next animation
-          if (i === pathDataArray.length - 1) {
-            useAnimationStore.setState({ isLineBeingAnimated: false });
+          } else {
             await new Promise((resolve) => setTimeout(resolve, 1000));
           }
         }
@@ -267,27 +261,26 @@ const LineChart: React.FC<LineChartProps> = ({
         await controls.start("all");
         useAnimationStore.setState({ isLineBeingAnimated: false });
       }
+  
       setCurrentlyAnimatingSeries(null);
       setIsAnimating(false);
-      
-      // Add a 1-second delay before removing focus
       await new Promise((resolve) => setTimeout(resolve, 1000));
       isAnimatingRef.current = false;
-      // Reset the focused series
       setFocusedSeries(null);
       useAnimationStore.setState({ focusedSeries: null });
-
       useAnimationStore.setState({ isLineBeingAnimated: false });
     };
-
+  
     if (pathDataArray.length > 0 && !isAnimatingRef.current) {
       void animateLines();
     }
-
-    return () => {
-      isAnimatingRef.current = false;
-    };
-  }, [controls, staggered, delay, pathDataArray, maxValueAxis, dataSeries]);
+  
+    // Remove or adjust the cleanup function
+    // return () => {
+    //   isAnimatingRef.current = false;
+    // };
+  }, [pathDataArray, staggered, delay, controls, maxValueAxis]);
+  
 
 
   // Memoize the axis elements
