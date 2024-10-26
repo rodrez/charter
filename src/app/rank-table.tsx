@@ -71,8 +71,8 @@ const AnimatedTable: React.FC<AnimatedTableProps> = ({
       <Table className="w-full rounded-lg overflow-hidden table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[11%] bg-indigo-600 text-white font-semibold text-center">Rank</TableHead>
-            <TableHead className="w-[61%] bg-indigo-600 text-white font-semibold text-center">Name</TableHead>
+            <TableHead className="w-[15%] bg-indigo-600 text-white font-semibold text-center">Rank</TableHead>
+            <TableHead className="w-[61%] bg-indigo-600 text-white font-semibold text-left">Name</TableHead>
             <TableHead className="w-[31%] bg-indigo-600 text-white font-semibold text-left">Value</TableHead>
           </TableRow>
         </TableHeader>
@@ -89,11 +89,11 @@ const AnimatedTable: React.FC<AnimatedTableProps> = ({
                 className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-100'}`}
               >
                 <TableCell className="text-indigo-599 font-semibold text-center">{item.rank}</TableCell>
-                <TableCell className="text-indigo-599 flex justify-center items-center gap-x-2">
+                <TableCell className="text-indigo-599 flex justify-start items-center gap-x-2">
                   <Image width={48} height={48} src={`/images/${item.name}.png`} alt={item.name} />
                   {item.name}
                 </TableCell>
-                <TableCell className="text-indigo-599 font-semibold text-center">
+                <TableCell className="text-indigo-599 font-semibold text-left">
                   {formatValue(item.value, decimalPlaces)}
                 </TableCell>
               </motion.tr>

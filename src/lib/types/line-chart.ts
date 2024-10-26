@@ -1,8 +1,10 @@
+import { ReactNode } from 'react';
+
 export interface DataSeries {
   title: string;
   color: string;
   data: { x: number; y: number }[];
-  label: string;
+  label: string | ReactNode;
   animationDuration: number;
   labelPosition?: "top" | "bottom" | "left" | "right" | "topLeft" | "topRight" | "bottomLeft" | "bottomRight";
   labelBackgroundColor?: string;

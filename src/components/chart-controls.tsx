@@ -8,6 +8,7 @@ import OptionsTab from './options-tab';
 import type { DataSeries } from '@/lib/types/line-chart';
 
 interface ChartControlsProps {
+  importFromJson: (event: React.ChangeEvent<HTMLInputElement>) => void;
   maxValueAxis: 'x' | 'y';
   setMaxValueAxis: (axis: 'x' | 'y') => void;
   data: DataSeries[];
@@ -78,6 +79,7 @@ const ChartControls: React.FC<ChartControlsProps> = ({
   delay,
   curved,
   handleFileUpload,
+  importFromJson,
   chartBackgroundColor,
   axisColor,
   labelColor,
@@ -132,7 +134,7 @@ const ChartControls: React.FC<ChartControlsProps> = ({
             <TabsTrigger value="options">Options</TabsTrigger>
           </TabsList>
           <TabsContent value="data">
-            <DataTab data={data} handleFileUpload={handleFileUpload} />
+            <DataTab data={data} handleFileUpload={handleFileUpload} importFromJson={importFromJson} />
             
           </TabsContent>
           <TabsContent value="preview">

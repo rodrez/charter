@@ -2,7 +2,10 @@ import React, { useMemo, useEffect, useRef, useState, useCallback } from "react"
 import { motion, useAnimation, AnimatePresence } from "framer-motion";
 import type { LineChartProps } from "@/lib/types/line-chart";
 import styles from './line-chart.module.css';
+import { useDebounceResize } from '@/lib/hooks/useDebounceResize';
+import { useAnimationStore } from "@/lib/store";
 
+const MARGIN = { top: 20, right: 40, bottom: 50, left: 60 }; // Moved outside the component
 
 const LineChart: React.FC<LineChartProps> = ({
   dataSeries,
@@ -17,7 +20,7 @@ const LineChart: React.FC<LineChartProps> = ({
   chartBackgroundColor = "white",
   legendBackgroundColor = "white",
   legendTextColor = "black",
-  dataLineColors = ["#0074D9", "#FF4136", "#2ECC40", "#FF851B", "#7FDBFF"],
+  dataLineColors = ["#0074D9", "#000000", "#2ECC40", "#FF4136", "#7FDBFF"],
   showHorizontalGridLines = true,
   horizontalGridLineColor = "#e0e0e0",
   useFirstColumnAsX = false,
@@ -33,11 +36,10 @@ const LineChart: React.FC<LineChartProps> = ({
   xAxisTitle = "X Axis",
   yAxisTitle = "Y Axis",
   axisTitleColor = "black",
-  maxValueAxis = 'y', // Default to 'y' for backwards compatibility
+  maxValueAxis = 'y',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const margin = { top: 20, right: 40, bottom: 50, left: 60 }; // Increased bottom margin
+  const { width: windowWidth, height: windowHeight } = useDebounceResize();
   const [showDecimals, setShowDecimals] = useState(initialShowDecimals);
   const [decimalPlaces, setDecimalPlaces] = useState(initialDecimalPlaces);
   const [focusedSeries, setFocusedSeries] = useState<number | null>(null);
@@ -46,48 +48,51 @@ const LineChart: React.FC<LineChartProps> = ({
 
   const onAnimationCompleteRef = useRef(onAnimationComplete);
 
-  // Update the ref when onAnimationComplete changes
   useEffect(() => {
     onAnimationCompleteRef.current = onAnimationComplete;
   }, [onAnimationComplete]);
 
   useEffect(() => {
-    const handleResize = () => {
-      if (containerRef.current) {
-        const { width } = containerRef.current.getBoundingClientRect();
-        let height: number;
+    console.log('Window dimensions:', { windowWidth, windowHeight });
+  }, [windowWidth, windowHeight]);
 
-        if (typeof minHeight === 'string' && minHeight.endsWith('%')) {
-          // If minHeight is a percentage, calculate it based on the viewport height
-          const percentage = parseFloat(minHeight) / 100;
-          height = Math.max((width / aspectRatio) * 0.6, window.innerHeight * percentage);
-        } else {
-          // If minHeight is a number or a pixel value, use it directly
-          const minHeightNumber = typeof minHeight === 'string' ? parseFloat(minHeight) : minHeight;
-          height = Math.max((width / aspectRatio) * 0.6, minHeightNumber);
-        }
+  const dimensions = useMemo(() => {
+    if (containerRef.current) {
+      const { width } = containerRef.current.getBoundingClientRect();
+      console.log('Container width:', width);
+      let height: number;
 
-        setDimensions({ 
-          width, 
-          height: height + margin.top + margin.bottom // Add top and bottom margins to total height
-        });
+      if (typeof minHeight === 'string' && minHeight.endsWith('%')) {
+        const percentage = parseFloat(minHeight) / 100;
+        height = Math.max((width / aspectRatio) * 0.6, windowHeight * percentage);
+      } else {
+        const minHeightNumber = typeof minHeight === 'string' ? parseFloat(minHeight) : minHeight;
+        height = Math.max((width / aspectRatio) * 0.6, minHeightNumber);
       }
-    };
 
-    handleResize(); // Initial size
+      console.log('Calculated dimensions before adjustment:', { width, height });
 
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [aspectRatio, minHeight, margin.top, margin.bottom]);
+      return { 
+        width: Math.max(1, width), // Ensure minimum width of 1
+        height: Math.max(1, height + MARGIN.top + MARGIN.bottom) // Ensure minimum height of 1
+      };
+    }
+    return { width: 1, height: 1 }; // Default to 1x1 if container not available
+  }, [windowWidth, windowHeight, aspectRatio, minHeight]);
 
-  // Update state when props change
   useEffect(() => {
-    setShowDecimals(initialShowDecimals);
-    setDecimalPlaces(initialDecimalPlaces);
-  }, [initialShowDecimals, initialDecimalPlaces]);
+    console.log('Final dimensions:', dimensions);
+  }, [dimensions]);
 
-  const width = dimensions.width - margin.left - margin.right;
-  const height = dimensions.height - margin.top - margin.bottom;
+  const safeWidth = Math.max(1, dimensions.width);
+  const safeHeight = Math.max(1, dimensions.height);
+
+  useEffect(() => {
+    console.log('Safe dimensions:', { width: safeWidth, height: safeHeight });
+  }, [safeWidth, safeHeight]);
+
+  const width = dimensions.width - MARGIN.left - MARGIN.right;
+  const height = dimensions.height - MARGIN.top - MARGIN.bottom;
 
   const controls = useAnimation();
 
@@ -210,50 +215,79 @@ const LineChart: React.FC<LineChartProps> = ({
     return { x: point.x, y: point.y };
   };
 
+  const isAnimatingRef = useRef(false);
+
   useEffect(() => {
     const animateLines = async () => {
+      if (isAnimatingRef.current) return;
+      isAnimatingRef.current = true;
+
+      console.log('Animation started in LineChart');
       setIsAnimating(true);
       if (staggered) {
+        // Add a 1-second delay before starting the animation
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
         for (let i = 0; i < pathDataArray.length; i++) {
-
-          if (i === i) {
-            await new Promise((resolve) => setTimeout(resolve, 4000));
-          } else {
-            await new Promise((resolve) => setTimeout(resolve, delay * 1000));
-          }
-
           setCurrentlyAnimatingSeries(i);
           setFocusedSeries(i);
+          useAnimationStore.setState({ focusedSeries: i });
           
-          // This shouldn't happen until the above await is complete
-
-          await controls.start(i.toString());
+          if (i === 1){
+            // NOTE: There's a bug with the animation that causes it to not work on the second line
+            // This is a workaround to wait for the animation to finish before starting the next one
+            await new Promise((resolve) => setTimeout(resolve, 2500));
+            await controls.start(i.toString());
+            useAnimationStore.setState({ isLineBeingAnimated: true });
+          } else {
+            await controls.start(i.toString());
+            useAnimationStore.setState({ isLineBeingAnimated: true });
+          }
 
           if (pathDataArray[i]) {
-            // Use the ref to call the latest version of onAnimationComplete
             onAnimationCompleteRef.current?.({
-            id: `series-${i}`,
-            name: pathDataArray[i]?.title ?? `Series ${i + 1}`,
-            value: Math.max(...(pathDataArray[i]?.data?.map((point) => point[maxValueAxis]) ?? [])),
+              id: `series-${i}`,
+              name: pathDataArray[i]?.title ?? `Series ${i + 1}`,
+              value: Math.max(...(pathDataArray[i]?.data?.map((point) => point[maxValueAxis]) ?? [])),
             });
           }
           
-          
+          if (i < pathDataArray.length - 1) {
+            useAnimationStore.setState({ isLineBeingAnimated: false });
+            await new Promise((resolve) => setTimeout(resolve, delay * 1000));
+          }
+          // if the element is the last one, wait for 1 second before starting the next animation
+          if (i === pathDataArray.length - 1) {
+            useAnimationStore.setState({ isLineBeingAnimated: false });
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
         }
       } else {
         setCurrentlyAnimatingSeries(null);
         await controls.start("all");
+        useAnimationStore.setState({ isLineBeingAnimated: false });
       }
       setCurrentlyAnimatingSeries(null);
       setIsAnimating(false);
-      await new Promise((resolve) => setTimeout(resolve, delay * 1000));
-      setFocusedSeries(null); // Add this line to remove focus after animation
+      
+      // Add a 1-second delay before removing focus
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      isAnimatingRef.current = false;
+      // Reset the focused series
+      setFocusedSeries(null);
+      useAnimationStore.setState({ focusedSeries: null });
+
+      useAnimationStore.setState({ isLineBeingAnimated: false });
     };
 
-    if (pathDataArray.length > 0) {
+    if (pathDataArray.length > 0 && !isAnimatingRef.current) {
       void animateLines();
     }
-  }, [controls, staggered, delay, pathDataArray, maxValueAxis, showDecimals, decimalPlaces]);
+
+    return () => {
+      isAnimatingRef.current = false;
+    };
+  }, [controls, staggered, delay, pathDataArray, maxValueAxis, dataSeries]);
 
 
   // Memoize the axis elements
@@ -301,7 +335,7 @@ const LineChart: React.FC<LineChartProps> = ({
         {/* X-axis title */}
         <text
           x={width / 2}
-          y={height + margin.bottom - 10} // Adjusted position
+          y={height + MARGIN.bottom - 10} // Adjusted position
           textAnchor="middle"
           fill={axisTitleColor}
           fontSize="14"
@@ -313,7 +347,7 @@ const LineChart: React.FC<LineChartProps> = ({
         {/* Y-axis title */}
         <text
           x={-height / 2}
-          y={-margin.left + 15}
+          y={-MARGIN.left + 15}
           textAnchor="middle"
           fill={axisTitleColor}
           fontSize="14"
@@ -323,7 +357,7 @@ const LineChart: React.FC<LineChartProps> = ({
         </text>
       </>
     );
-  }, [height, width, axisColor, yAxisTicks, showHorizontalGridLines, horizontalGridLineColor, formatAxisValue, xAxisTitle, yAxisTitle, axisTitleColor, margin.bottom, margin.left, showDecimals, decimalPlaces]);
+  }, [height, width, axisColor, yAxisTicks, showHorizontalGridLines, horizontalGridLineColor, formatAxisValue, xAxisTitle, yAxisTitle, axisTitleColor, MARGIN.bottom, MARGIN.left, showDecimals, decimalPlaces]);
 
   const [labelDimensions, setLabelDimensions] = useState<Record<number, { width: number, height: number }>>({});
 
@@ -376,7 +410,6 @@ const LineChart: React.FC<LineChartProps> = ({
   // Modify the sortedPathDataArray to consider both focusedSeries and currentlyAnimatingSeries
   const sortedPathDataArray = useMemo(() => {
     if (focusedSeries === null && currentlyAnimatingSeries === null) return pathDataArray;
-    // const activeIndex = focusedSeries !== null ? focusedSeries : currentlyAnimatingSeries;
     const activeIndex = currentlyAnimatingSeries ?? focusedSeries;
     return [
       ...pathDataArray.filter((_, index) => index !== activeIndex),
@@ -385,21 +418,21 @@ const LineChart: React.FC<LineChartProps> = ({
   }, [pathDataArray, focusedSeries, currentlyAnimatingSeries]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: `${dimensions.height}px` }}>
+    <div ref={containerRef} style={{ width: '100%', height: `${safeHeight}px` }}>
       <svg
-        width={dimensions.width}
-        height={dimensions.height}
-        viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
+        width={safeWidth}
+        height={safeHeight}
+        viewBox={`0 0 ${safeWidth} ${safeHeight}`}
         preserveAspectRatio="xMidYMid meet"
       >
         <rect
           x="0"
           y="0"
-          width={dimensions.width}
-          height={dimensions.height}
+          width={safeWidth}
+          height={safeHeight}
           fill={chartBackgroundColor}
         />
-        <g transform={`translate(${margin.left},${margin.top})`}>
+        <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
           {axisElements}
           {useFirstColumnAsX && xAxisTicks.map(({ value, x }) => (
             <g key={value} transform={`translate(${x}, ${height})`}>
@@ -463,6 +496,13 @@ const LineChart: React.FC<LineChartProps> = ({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.5 }}
+                    className={
+                      (focusedSeries === null && currentlyAnimatingSeries === null) || 
+                      focusedSeries === originalIndex || 
+                      currentlyAnimatingSeries === originalIndex 
+                        ? '' 
+                        : styles.unfocused
+                    }
                   >
                     {(() => {
                       const path = pathRefs.current[originalIndex];
@@ -538,7 +578,15 @@ const LineChart: React.FC<LineChartProps> = ({
                                   width={boxWidth}
                                   height={boxHeight}
                                 >
-                                  <div>
+                                  <div
+                                    className={
+                                      (focusedSeries === null && currentlyAnimatingSeries === null) || 
+                                      focusedSeries === originalIndex || 
+                                      currentlyAnimatingSeries === originalIndex 
+                                        ? '' 
+                                        : styles.unfocused
+                                    }
+                                  >
                                     {series.labelComponent}
                                   </div>
                                 </foreignObject>
@@ -577,16 +625,16 @@ const LineChart: React.FC<LineChartProps> = ({
                 transition={{ duration: 0.3 }}
               >
                 <rect
-                  x={-width / 2 + margin.left}
+                  x={-width / 2 + MARGIN.left}
                   y="-25"
-                  width={width - margin.left - margin.right}
+                  width={width - MARGIN.left - MARGIN.right}
                   height="40"
                   fill={legendBackgroundColor}
                   rx="5"
                   ry="5"
                 />
                 {pathDataArray.map((series, index) => {
-                  const itemWidth = 100; // Adjust this value based on your needs
+                  const itemWidth = Math.min(150, (width - MARGIN.left - MARGIN.right) / pathDataArray.length);
                   const totalWidth = pathDataArray.length * itemWidth;
                   const startX = -totalWidth / 2;
                   return (
@@ -607,6 +655,8 @@ const LineChart: React.FC<LineChartProps> = ({
                         width="10"
                         height="10"
                         fill={series.color}
+                        rx="2"
+                        ry="2"
                       />
                       <text
                         x="15"
@@ -614,7 +664,9 @@ const LineChart: React.FC<LineChartProps> = ({
                         fontSize="12"
                         fill={legendTextColor}
                       >
-                        {series.title ?? 'Untitled'}
+                        {(series.title ?? 'Untitled').length > 15 
+                          ? (series.title ?? 'Untitled').substring(0, 15) + '...' 
+                          : (series.title ?? 'Untitled')}
                       </text>
                     </g>
                   );
