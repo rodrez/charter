@@ -4,6 +4,7 @@ import type { LineChartProps } from "@/lib/types/line-chart";
 import styles from './line-chart.module.css';
 import { useDebounceResize } from '@/lib/hooks/useDebounceResize';
 import { useAnimationStore } from "@/lib/store";
+import Watermark from "../watermark";
 
 const MARGIN = { top: 20, right: 40, bottom: 50, left: 60 }; // Moved outside the component
 
@@ -17,7 +18,7 @@ const LineChart: React.FC<LineChartProps> = ({
   labelColor = "white",
   skipZeroes = false,
   labelBackgroundColor = 'rgba(0, 0, 0, 0.6)',
-  chartBackgroundColor = "white",
+  // chartBackgroundColor = "white",
   legendBackgroundColor = "white",
   legendTextColor = "black",
   dataLineColors = ["#0074D9", "#000000", "#2ECC40", "#FF4136", "#7FDBFF"],
@@ -40,8 +41,8 @@ const LineChart: React.FC<LineChartProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { width: windowWidth, height: windowHeight } = useDebounceResize();
-  const [showDecimals, setShowDecimals] = useState(initialShowDecimals);
-  const [decimalPlaces, setDecimalPlaces] = useState(initialDecimalPlaces);
+  // const [showDecimals, setShowDecimals] = useState(initialShowDecimals);
+  // const [decimalPlaces, setDecimalPlaces] = useState(initialDecimalPlaces);
   const [focusedSeries, setFocusedSeries] = useState<number | null>(null);
   const [currentlyAnimatingSeries, setCurrentlyAnimatingSeries] = useState<number | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -78,7 +79,7 @@ const LineChart: React.FC<LineChartProps> = ({
       };
     }
     return { width: 1, height: 1 }; // Default to 1x1 if container not available
-  }, [windowWidth, windowHeight, aspectRatio, minHeight]);
+  }, [windowHeight, aspectRatio, minHeight]);
 
   useEffect(() => {
     console.log('Final dimensions:', dimensions);
@@ -110,14 +111,14 @@ const LineChart: React.FC<LineChartProps> = ({
   // Update the type of dataSeries
   const updatedDataSeries = useMemo(() => dataSeries as DataSeries[], [dataSeries]);
 
-  // Modify the formatAxisValue function to use the state values
+  // Update the formatAxisValue function to use the prop values directly
   const formatAxisValue = useCallback((value: number): string => {
-    if (!showDecimals && Number.isInteger(value)) {
+    if (!initialShowDecimals && Number.isInteger(value)) {
       return value.toString();
     } else {
-      return value.toFixed(decimalPlaces);
+      return value.toFixed(initialDecimalPlaces);
     }
-  }, [showDecimals, decimalPlaces]);
+  }, [initialShowDecimals, initialDecimalPlaces]);
 
   // Modify the useMemo hook for pathDataArray, yMax, xMin, and xMax
   const { pathDataArray, yMin, yMax, xMin, xMax } = useMemo(() => {
@@ -132,19 +133,22 @@ const LineChart: React.FC<LineChartProps> = ({
     let yMin = Math.min(...allYValues.filter(value => !skipZeroes || value !== 0));
     let yMax = Math.max(...allYValues.filter(value => !skipZeroes || value !== 0));
 
+    // Ensure xMin and yMin don't go below 0
+    xMin = Math.max(0, xMin);
+    yMin = Math.max(0, yMin);
+
     // Add padding to yMin and yMax if zoomed
     if (isZoomed) {
       const yRange = yMax - yMin;
-      yMin = yMin - yRange * yAxisPadding;
+      yMin = Math.max(0, yMin - yRange * yAxisPadding);
       yMax = yMax + yRange * yAxisPadding;
     } else {
-      yMin = 0; // Reset to 0 for full view
       yMax = yMax * (1 + yAxisPadding);
     }
 
     // Add padding to xMin and xMax
     const xRange = xMax - xMin;
-    xMin = xMin - xRange * xAxisPadding;
+    xMin = Math.max(0, xMin - xRange * xAxisPadding);
     xMax = xMax + xRange * xAxisPadding;
 
     const xScale = width / (xMax - xMin);
@@ -306,7 +310,7 @@ const LineChart: React.FC<LineChartProps> = ({
               fill={axisColor}
               initial={{ opacity: 1 }}
               animate={{ opacity: 1 }}
-              key={`${value}-${showDecimals}-${decimalPlaces}`}
+              key={`${value}-${initialShowDecimals}-${initialDecimalPlaces}`}
             >
               {formatAxisValue(value)}
             </motion.text>
@@ -350,7 +354,7 @@ const LineChart: React.FC<LineChartProps> = ({
         </text>
       </>
     );
-  }, [height, width, axisColor, yAxisTicks, showHorizontalGridLines, horizontalGridLineColor, formatAxisValue, xAxisTitle, yAxisTitle, axisTitleColor, MARGIN.bottom, MARGIN.left, showDecimals, decimalPlaces]);
+  }, [height, width, axisColor, yAxisTicks, showHorizontalGridLines, horizontalGridLineColor, formatAxisValue, xAxisTitle, yAxisTitle, axisTitleColor, initialShowDecimals, initialDecimalPlaces]);
 
   const [labelDimensions, setLabelDimensions] = useState<Record<number, { width: number, height: number }>>({});
 
@@ -411,20 +415,29 @@ const LineChart: React.FC<LineChartProps> = ({
   }, [pathDataArray, focusedSeries, currentlyAnimatingSeries]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: `${safeHeight}px` }}>
+    <div ref={containerRef} style={{ width: '100%', height: `${safeHeight}px` }} className="rounded-lg overflow-hidden relative">
       <svg
         width={safeWidth}
         height={safeHeight}
         viewBox={`0 0 ${safeWidth} ${safeHeight}`}
         preserveAspectRatio="xMidYMid meet"
+        className="relative"
       >
-        <rect
+        <foreignObject
           x="0"
           y="0"
           width={safeWidth}
           height={safeHeight}
-          fill={chartBackgroundColor}
-        />
+          className="pointer-events-none bg-white "
+        >
+        {/* <Watermark text="Brand Ranks" className="absolute top-40 left-0 text-7xl"/>
+        <Watermark text="Brand Ranks" className="absolute top-40 right-0 text-7xl"/>
+        <Watermark text="Brand Ranks" className="absolute bottom-40 left-0 text-7xl"/>
+        <Watermark text="Brand Ranks" className="absolute bottom-40 right-0 text-7xl"/>
+        <Watermark text="Brand Ranks" className="absolute top-80 left-96 text-7xl"/>
+        <Watermark text="Brand Ranks" className="absolute top-80 right-96 text-7xl"/> */}
+        <Watermark text="Brand Ranks" />
+        </foreignObject>
         <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
           {axisElements}
           {useFirstColumnAsX && xAxisTicks.map(({ value, x }) => (
@@ -435,10 +448,10 @@ const LineChart: React.FC<LineChartProps> = ({
                 textAnchor="middle" 
                 fontSize="12" 
                 fill={axisColor}
-                transform={`translate(0, ${showDecimals || !Number.isInteger(value) ? 5 : 0})`}
+                transform={`translate(0, ${initialShowDecimals || !Number.isInteger(value) ? 5 : 0})`}
                 initial={{ opacity: 1 }}
                 animate={{ opacity: 1 }}
-                key={`${value}-${showDecimals}-${decimalPlaces}`}
+                key={`${value}-${initialShowDecimals}-${initialDecimalPlaces}`}
               >
                 {formatAxisValue(value)}
               </motion.text>

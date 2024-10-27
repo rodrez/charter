@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-interface ChartState {
+export interface ChartState {
   chartBackgroundColor: string;
   axisColor: string;
   labelColor: string;

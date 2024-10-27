@@ -5,25 +5,26 @@ Charts and Tables
     -> Table
     -> Staggerd Line Chart
 
-- [x] Efficiency(AEM, K&N Select, Spectre, K&N Perf, K&N Select) 
+- [x] Efficiency(AEM, K&N Select, Spectre, K&N Perf) 
     -> Table
     -> Combined Area Chart
 
-- [ ]  3 Dyno Pulls (AEM)
+- [x]  3 Dyno Pulls (AEM)
     -> Table
-    -> Line Chart
+    -> Staggered Line Chart
 
-- [ ] Capacity (AEM, K&N Select, Spectre, K&N Perf, K&N Select)
+- [x] Capacity (AEM, K&N Select, Spectre, K&N Perf)
     -> Table
-    -> Stacked Area Chart
+    -> Staggered Line Chart
 
-- [ ] Horsepower (AEM, K&N Select, Spectre, K&N Perf, K&N Select) 
+- [x] Horsepower (AEM, K&N Select, Spectre, K&N Perf) 
     -> Table
-    -> Stacked Area Chart
-    -> Each By themeseleves
+    -> Staggered Line Chart
 
 
-- [ ] Air Flow K&N Performance vs All From Previous Video (AEM)
+- [x] Air Flow K&N Performance vs All From Previous Video (AEM)
     -> Table
 
-- [ ] AEM vs Fram Chart
+- [ ] AEM vs Fram Chart Air Flow
+
+- [ ] AEM vs Purolator Horsepower

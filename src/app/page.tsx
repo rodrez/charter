@@ -8,7 +8,8 @@ import LineChart from "@/components/line-chart/line-chart";
 import Image from "next/image";
 import AnimatedTable from "./rank-table";
 import { Button } from "@/components/ui/button"; 
-import { useAnimationStore, useChartStore } from '@/lib/store';
+import { type ChartState, useAnimationStore, useChartStore } from '@/lib/store';
+import { BRBackground } from "@/components/br";
 
 // Custom component that renders an image
 const ImageLabelComponent = ({ src }: { src: string}) => (
@@ -60,7 +61,7 @@ export default function TestPage() {
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver((entries) => {
-      for (let entry of entries) {
+      for (const entry of entries) {
         console.log('Chart container size:', entry.contentRect);
       }
     });
@@ -91,15 +92,15 @@ export default function TestPage() {
               
               for (let i = startIndex; i < (headers?.length ?? 0); i++) {
                 const dataPoints = parsedData.slice(1).map((row: string[], rowIndex: number) => {
-                  if (!row || row.length === 0) return null;
+                  if (!row?.length) return null;
 
                   const x = chartState.useFirstColumnAsX ? parseFloat(row[0] ?? '') : rowIndex;
                   const y = parseFloat(row[i] ?? '');
                   return { 
                     x: isNaN(x) ? rowIndex : x, 
-                    y: isNaN(y) || y === 0 ? null : y  // Change here: exclude y values that are 0
+                    y: isNaN(y) ?? y === 0 ? null : y
                   };
-                }).filter((point): point is { x: number; y: number } => point !== null && point.y !== null)  // Change here: ensure y is not null
+                }).filter((point): point is { x: number; y: number } => point?.y !== null);
                 
                 if (dataPoints.length > 0) {
                   series.push({
@@ -230,7 +231,7 @@ export default function TestPage() {
       reader.onload = (e) => {
         const content = e.target?.result as string;
         try {
-          const importedState = JSON.parse(content);
+          const importedState = JSON.parse(content) as Partial<ChartState>;
           chartState.setChartState(importedState);
         } catch (error) {
           console.error("Error parsing JSON:", error);
@@ -242,7 +243,7 @@ export default function TestPage() {
 
   // Modify the effect to handle delayed table data population
   useEffect(() => {
-    if (isAnimationStarted && activeView === 'table' && loadedData.length > 0) {
+    if (isAnimationStarted && loadedData.length > 0) {
       // Reset table data first
       setTableData([]);
 
@@ -250,25 +251,28 @@ export default function TestPage() {
       setTimeout(() => {
         // Process and add entries with delay
         loadedData.forEach((series, index) => {
-        const lastDataPoint = series.data[series.data.length - 1];
-        const entry = {
-          id: series.title,
-          name: series.title,
-          value: lastDataPoint.y
-        };
-        
-        // Use the same delay as the chart animation
-        setTimeout(() => {
-          setTableData(prev => [...prev, entry]);
-        }, index * (chartState.delay * 1000)); // Convert delay to milliseconds
+          // Find the maximum y value in the series
+          // We use the maxValue axis to determine the best value
+          const maxValue = Math.max(...series.data.map(point => chartState.maxValueAxis === 'y' ? point.y : point.x));
+          const entry = {
+            id: series.title,
+            name: series.title,
+            value: maxValue
+          };
+          
+          // Use the same delay as the chart animation
+          setTimeout(() => {
+            setTableData(prev => [...prev, entry]);
+          }, index * (chartState.delay * 1000)); // Convert delay to milliseconds
         });
       }, 1000);
     }
-  }, [isAnimationStarted, activeView, loadedData, chartState.delay])
+    // The animation is working well without chartState.maxValueAxis
+  }, [isAnimationStarted, loadedData, chartState.delay, chartState.maxValueAxis]);
 
   return (
-    <div className={`mx-auto ${isExpandedBeforeAnimation || isAnimationStarted ? 'mt-0 px-0' : 'mt-8 px-4'}`}>
-
+    <div className={`mx-auto bg-pink-800 ${isExpandedBeforeAnimation || isAnimationStarted ? 'mt-0 px-0' : 'mt-8 px-4'}`}>
+      <BRBackground rows={8} columns={8} opacity={0.25} /> 
       {!isAnimationStarted && (
         <>
           <ChartControls
@@ -346,18 +350,18 @@ export default function TestPage() {
           className={`flex flex-col ${isExpandedBeforeAnimation || isAnimationStarted ? 'h-screen w-[99%] mx-auto my-1' : ''}`}
           style={{ minHeight: '400px' }} // Ensure a minimum height
         >
-          {isLineBeingAnimated ? (
+          {focusedSeries !== null && (
+            <div className="fixed top-1 rounded-md left-64 px-2 py-1 bg-black/50 z-50">
+              <p className="text-white text-sm">Focused on {focusedSeries}</p>
+            </div>
+          )}
+          {!isLineBeingAnimated ? (
             <div className="fixed top-1 rounded-md left-40 px-2 py-1 bg-black/50 z-50">
               <p className="text-white text-sm ">Not animating yet</p>
             </div>
           ) : (
             <div className="fixed top-1 rounded-md left-40 px-2 py-1 bg-black/50 z-50">
               <p className="text-white text-sm">Animating...</p>
-            </div>
-          )}
-          {focusedSeries !== null && (
-            <div className="fixed top-1 rounded-md left-64 px-2 py-1 bg-black/50 z-50">
-              <p className="text-white text-sm">Focused on {focusedSeries}</p>
             </div>
           )}
           {isAnimationStarted && (
@@ -372,7 +376,7 @@ export default function TestPage() {
               </Button>
             </div>
           )}
-          <div className="flex h-[calc(100%-40px)]">
+          <div className="flex h-[calc(100%-40px)] rounded-lg overflow-hidden">
             {activeView !== 'table' && (
               <div 
                 ref={chartContainerRef}
@@ -416,7 +420,7 @@ export default function TestPage() {
             {isAnimationStarted && activeView !== 'chart' && (
               <div className={`${
                 activeView === 'both' ? 'w-[25%]' : 'w-[50%]'
-              } h-full overflow-auto mx-auto mt-4`}>
+              } h-full overflow-auto mx-auto mt-4 p-3`}>
                 <AnimatedTable 
                   data={tableData} 
                   decimalPlaces={chartState.decimalPlaces} 
@@ -427,7 +431,7 @@ export default function TestPage() {
           </div>
         </div>
       ) : (
-        <p className="h-[90vh]">No valid data to display. Please upload a CSV file with numeric data and click "Start Animation".</p>
+        <p className="h-[90vh]">No valid data to display. Please upload a CSV file with numeric data and click &quot;Start Animation&quot;.</p>
       )}
     </div>
   );
