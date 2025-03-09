@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import type { ChangeEvent } from "react";
 import Papa from "papaparse";
 import ChartControls from "@/components/chart-controls";
 import type { DataSeries } from "@/lib/types/line-chart";
@@ -73,7 +74,7 @@ export default function TestPage() {
     return () => resizeObserver.disconnect();
   }, []);
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -94,11 +95,11 @@ export default function TestPage() {
                 const dataPoints = parsedData.slice(1).map((row: string[], rowIndex: number) => {
                   if (!row?.length) return null;
 
-                  const x = chartState.useFirstColumnAsX ? parseFloat(row[0] ?? '') : rowIndex;
-                  const y = parseFloat(row[i] ?? '');
+                  const x = chartState.useFirstColumnAsX ? Number.parseFloat(row[0] ?? '') : rowIndex;
+                  const y = Number.parseFloat(row[i] ?? '');
                   return { 
-                    x: isNaN(x) ? rowIndex : x, 
-                    y: isNaN(y) ?? y === 0 ? null : y
+                    x: Number.isNaN(x) ? rowIndex : x, 
+                    y: Number.isNaN(y) ?? y === 0 ? null : y
                   };
                 }).filter((point): point is { x: number; y: number } => point?.y !== null);
                 
@@ -143,26 +144,43 @@ export default function TestPage() {
 
   const handleStartAnimation = () => {
     console.log('loadedData', loadedData);
-    setData(loadedData);
-    // Only reset table data if we're not in table-only view
-    if (activeView !== 'table') {
-      setTableData([]);
-    }
-    setIsAnimationStarted(true);
+    
+    // Reset animation state first
+    setIsAnimationStarted(false);
+    setData([]);
+    setTableData(activeView !== 'table' ? [] : (prevTableData) => prevTableData);
+    setCompletedAnimations(new Set());
+    
+    // Use requestAnimationFrame to ensure DOM has updated before starting animation
+    requestAnimationFrame(() => {
+      // Small timeout to ensure clean animation start
+      setTimeout(() => {
+        setIsAnimationStarted(true);
+        setData(loadedData);
+      }, 50);
+    });
   };
 
   const handleRestartAnimation = useCallback(() => {
+    // Reset animation state
     setIsAnimationStarted(false);
     setData([]);
+    
     // Only reset table data if we're not in table-only view
     if (activeView !== 'table') {
       setTableData([]);
     }
     setCompletedAnimations(new Set());
 
+    // Use nested requestAnimationFrame for smoother animation restart
     requestAnimationFrame(() => {
-      setIsAnimationStarted(true);
-      setData(loadedData);
+      requestAnimationFrame(() => {
+        // Small timeout to ensure clean animation start
+        setTimeout(() => {
+          setIsAnimationStarted(true);
+          setData(loadedData);
+        }, 50);
+      });
     });
   }, [loadedData, activeView]);
 
@@ -188,7 +206,7 @@ export default function TestPage() {
   }, [isAnimationStarted]);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') {
         setActiveView('both');
       }
@@ -224,7 +242,7 @@ export default function TestPage() {
     URL.revokeObjectURL(url);
   };
 
-  const importFromJson = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const importFromJson = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -424,7 +442,7 @@ export default function TestPage() {
                 <AnimatedTable 
                   data={tableData} 
                   decimalPlaces={chartState.decimalPlaces} 
-                  lowerIsBetter={true} 
+                  lowerIsBetter={false} 
                 />
               </div>
             )}

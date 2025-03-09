@@ -1,14 +1,16 @@
-import React, { useMemo, useEffect, useRef, useState, useCallback } from "react";
+import { useMemo, useEffect, useRef, useState, useCallback } from "react";
+import type { FC } from "react";
 import { motion, useAnimation, AnimatePresence } from "framer-motion";
 import type { LineChartProps } from "@/lib/types/line-chart";
 import styles from './line-chart.module.css';
 import { useDebounceResize } from '@/lib/hooks/useDebounceResize';
 import { useAnimationStore } from "@/lib/store";
 import Watermark from "../watermark";
+import { cn } from "@/lib/utils";
 
 const MARGIN = { top: 20, right: 40, bottom: 50, left: 60 }; // Moved outside the component
 
-const LineChart: React.FC<LineChartProps> = ({
+const LineChart: FC<LineChartProps> = ({
   dataSeries,
   staggered = false,
   delay = 0.5,
@@ -64,10 +66,10 @@ const LineChart: React.FC<LineChartProps> = ({
       let height: number;
 
       if (typeof minHeight === 'string' && minHeight.endsWith('%')) {
-        const percentage = parseFloat(minHeight) / 100;
+        const percentage = Number.parseFloat(minHeight) / 100;
         height = Math.max((width / aspectRatio) * 0.6, windowHeight * percentage);
       } else {
-        const minHeightNumber = typeof minHeight === 'string' ? parseFloat(minHeight) : minHeight;
+        const minHeightNumber = typeof minHeight === 'string' ? Number.parseFloat(minHeight) : minHeight;
         height = Math.max((width / aspectRatio) * 0.6, minHeightNumber);
       }
 
@@ -115,12 +117,12 @@ const LineChart: React.FC<LineChartProps> = ({
   }, [dataSeries]);
 
   // Update the formatAxisValue function to use the prop values directly
-  const formatAxisValue = useCallback((value: number): string => {
+  const formatAxisValue = useCallback((value: number) => {
     if (!initialShowDecimals && Number.isInteger(value)) {
       return value.toString();
-    } else {
-      return value.toFixed(initialDecimalPlaces);
-    }
+    } 
+    
+    return value.toFixed(initialDecimalPlaces);
   }, [initialShowDecimals, initialDecimalPlaces]);
 
   // Modify the useMemo hook for pathDataArray, yMax, xMin, and xMax
@@ -216,12 +218,18 @@ const LineChart: React.FC<LineChartProps> = ({
     });
   }, [xMin, xMax, width]);
 
-  const pathRefs = useRef<SVGPathElement[]>([]);
+  const pathRefs = useRef<(SVGPathElement | null)[]>([]);
   const [animationProgress, setAnimationProgress] = useState<number[]>(
     Array(updatedDataSeries.length).fill(0),
   );
+  
+  // Initialize path refs array when data changes
+  useEffect(() => {
+    pathRefs.current = Array(updatedDataSeries.length).fill(null);
+  }, [updatedDataSeries.length]);
 
-  const getPointAtLength = (path: SVGPathElement, length: number) => {
+  const getPointAtLength = (path: SVGPathElement | null, length: number) => {
+    if (!path) return { x: 0, y: 0 };
     const point = path.getPointAtLength(length);
     return { x: point.x, y: point.y };
   };
@@ -233,75 +241,178 @@ const LineChart: React.FC<LineChartProps> = ({
     isMountedRef.current = true;
     
     return () => {
+      // Ensure proper cleanup on unmount
+      isAnimatingRef.current = false;
       isMountedRef.current = false;
+      
+      // Clean up animation state
+      setFocusedSeries(null);
+      setCurrentlyAnimatingSeries(null);
+      setIsAnimating(false);
+      setAnimationProgress(Array(updatedDataSeries.length).fill(0));
+      
+      // Ensure Framer Motion animation is properly cancelled
+      controls.stop();
+      
+      // Reset global animation state
+      useAnimationStore.setState({ 
+        focusedSeries: null,
+        isLineBeingAnimated: false
+      });
     };
-  }, []);
+  }, [controls, updatedDataSeries.length]);
 
   useEffect(() => {
     const animateLines = async () => {
       if (isAnimatingRef.current || !isMountedRef.current) return;
-      isAnimatingRef.current = true;
-  
+      
       console.log('Animation started in LineChart. Path data array:', pathDataArray);
+      
+      // Set animation state
+      isAnimatingRef.current = true;
       setIsAnimating(true);
-  
-      if (staggered) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-  
-        for (let i = 0; i < pathDataArray.length; i++) {
-          if (!isMountedRef.current) return;
-          setCurrentlyAnimatingSeries(i);
-          setFocusedSeries(i);
-          useAnimationStore.setState({ focusedSeries: i });
-  
-          if (i === 1) {
-            await new Promise((resolve) => setTimeout(resolve, 2500));
+      
+      // Simple delay function
+      const waitMs = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      
+      try {
+        if (staggered) {
+          // Animate each line one by one with timeout protection
+          for (let i = 0; i < pathDataArray.length; i++) {
+            if (!isMountedRef.current) break;
+            
+            console.log(`Animating series ${i}`);
+            setCurrentlyAnimatingSeries(i);
+            setFocusedSeries(i);
+            useAnimationStore.setState({ 
+              focusedSeries: i,
+              isLineBeingAnimated: true 
+            });
+            
+            // Use direct setState approach instead of framer-motion for more reliability
+            setAnimationProgress((prev) => {
+              const newProgress = [...prev];
+              // Start with progress 0
+              newProgress[i] = 0;
+              return newProgress;
+            });
+            
+            // Manually animate the path using timeouts instead of Framer Motion
+            const steps = 20; // Number of animation steps
+            const stepDuration = 100; // Duration of each step in ms
+            const totalDuration = steps * stepDuration;
+            
+            console.log(`Starting manual animation of series ${i}`);
+            
+            // Manual animation loop with timeout protection
+            for (let step = 1; step <= steps; step++) {
+              if (!isMountedRef.current) break;
+              
+              const progress = step / steps;
+              console.log(`Series ${i} animation progress: ${progress.toFixed(2)}`);
+              
+              setAnimationProgress((prev) => {
+                const newProgress = [...prev];
+                newProgress[i] = progress;
+                return newProgress;
+              });
+              
+              await waitMs(stepDuration);
+            }
+            
+            // Ensure final state is set
+            if (isMountedRef.current) {
+              setAnimationProgress((prev) => {
+                const newProgress = [...prev];
+                newProgress[i] = 1;
+                return newProgress;
+              });
+              
+              // Report animation completion
+              console.log(`Completed animation for series ${i}`);
+              if (pathDataArray[i]) {
+                onAnimationCompleteRef.current?.({
+                  id: `series-${i}`,
+                  name: pathDataArray[i]?.title ?? `Series ${i + 1}`,
+                  value: Math.max(...(pathDataArray[i]?.data?.map((point) => point[maxValueAxis]) ?? [])),
+                });
+              }
+            }
+            
+            // Wait before starting the next line
+            if (i < pathDataArray.length - 1) {
+              await waitMs(delay * 1000);
+            }
           }
-  
+        } else {
+          // Animate all lines simultaneously
+          setCurrentlyAnimatingSeries(null);
           useAnimationStore.setState({ isLineBeingAnimated: true });
-          if (isMountedRef.current) {
-            await controls.start(i.toString());
+          
+          console.log('Animating all lines simultaneously');
+          
+          // Manual animation for all lines simultaneously
+          const steps = 20; // Number of animation steps
+          const stepDuration = 100; // Duration of each step in ms
+          
+          // Reset all progress
+          setAnimationProgress(Array(pathDataArray.length).fill(0));
+          
+          // Manual animation loop
+          for (let step = 1; step <= steps; step++) {
+            if (!isMountedRef.current) break;
+            
+            const progress = step / steps;
+            console.log(`All series animation progress: ${progress.toFixed(2)}`);
+            
+            setAnimationProgress(Array(pathDataArray.length).fill(progress));
+            
+            await waitMs(stepDuration);
           }
-  
-          if (pathDataArray[i] && isMountedRef.current) {
-            onAnimationCompleteRef.current?.({
-              id: `series-${i}`,
-              name: pathDataArray[i]?.title ?? `Series ${i + 1}`,
-              value: Math.max(...(pathDataArray[i]?.data?.map((point) => point[maxValueAxis]) ?? [])),
+          
+          // Ensure final state
+          if (isMountedRef.current) {
+            setAnimationProgress(Array(pathDataArray.length).fill(1));
+            
+            // Report completion for all lines
+            pathDataArray.forEach((series, i) => {
+              if (isMountedRef.current) {
+                onAnimationCompleteRef.current?.({
+                  id: `series-${i}`,
+                  name: series?.title ?? `Series ${i + 1}`,
+                  value: Math.max(...(series?.data?.map((point) => point[maxValueAxis]) ?? [])),
+                });
+              }
             });
           }
-  
-          useAnimationStore.setState({ isLineBeingAnimated: false });
-  
-          if (i < pathDataArray.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, delay * 1000));
-          } else {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-          }
         }
-      } else {
-        setCurrentlyAnimatingSeries(null);
+      } catch (error) {
+        console.error('Animation error:', error);
+      } finally {
+        // Clean up animation state
         if (isMountedRef.current) {
-          await controls.start("all");
+          setCurrentlyAnimatingSeries(null);
+          setIsAnimating(false);
+          setFocusedSeries(null);
+          useAnimationStore.setState({ 
+            focusedSeries: null,
+            isLineBeingAnimated: false 
+          });
+          isAnimatingRef.current = false;
+          
+          console.log('Animation complete, all states reset');
         }
-        useAnimationStore.setState({ isLineBeingAnimated: false });
-      }
-  
-      if (isMountedRef.current) {
-        setCurrentlyAnimatingSeries(null);
-        setIsAnimating(false);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        isAnimatingRef.current = false;
-        setFocusedSeries(null);
-        useAnimationStore.setState({ focusedSeries: null });
-        useAnimationStore.setState({ isLineBeingAnimated: false });
       }
     };
-  
+    
     // Only run animation if component is mounted and data exists
     if (pathDataArray.length > 0 && !isAnimatingRef.current && isMountedRef.current) {
       console.log('Starting animation with pathDataArray:', pathDataArray.length);
-      void animateLines();
+      
+      // Allow time for DOM to update before starting animation
+      setTimeout(() => {
+        void animateLines();
+      }, 100);
     } else {
       console.log('Animation conditions not met:', {
         pathsExist: pathDataArray.length > 0,
@@ -309,7 +420,7 @@ const LineChart: React.FC<LineChartProps> = ({
         isMounted: isMountedRef.current
       });
     }
-  }, [pathDataArray, staggered, delay, controls, maxValueAxis]);
+  }, [pathDataArray, staggered, delay, maxValueAxis]);
   
 
 
@@ -327,19 +438,17 @@ const LineChart: React.FC<LineChartProps> = ({
         {yAxisTicks.map(({ value, y }) => (
           <g key={value}>
             <line x1="-5" y1={y} x2="0" y2={y} stroke={axisColor} />
-            <motion.text 
+            <text 
               x="-10" 
               y={y} 
               dominantBaseline="middle" 
               textAnchor="end" 
               fontSize="12" 
               fill={axisColor}
-              initial={{ opacity: 1 }}
-              animate={{ opacity: 1 }}
               key={`${value}-${initialShowDecimals}-${initialDecimalPlaces}`}
             >
               {formatAxisValue(value)}
-            </motion.text>
+            </text>
 
             {/* Render horizontal grid lines if the prop is true */}
             {showHorizontalGridLines && (
@@ -443,47 +552,39 @@ const LineChart: React.FC<LineChartProps> = ({
   }, [pathDataArray, focusedSeries, currentlyAnimatingSeries]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: `${safeHeight}px` }} className="rounded-lg overflow-hidden relative">
+    <div
+      className={cn(styles.lineChartContainer, 'bg-white')}
+      ref={containerRef}
+      style={{ width: "100%", aspectRatio: `${aspectRatio}` }}
+    >
       <svg
-        width={safeWidth}
-        height={safeHeight}
         viewBox={`0 0 ${safeWidth} ${safeHeight}`}
         preserveAspectRatio="xMidYMid meet"
-        className="relative"
+        style={{ width: "100%", height: "100%" }}
+        aria-label="Line chart visualization"
       >
         <title>Line Chart Visualization</title>
-        <foreignObject
-          x="0"
-          y="0"
-          width={safeWidth}
-          height={safeHeight}
-          className="pointer-events-none bg-white "
-        >
-        {/* <Watermark text="Brand Ranks" className="absolute top-40 left-0 text-7xl"/>
-        <Watermark text="Brand Ranks" className="absolute top-40 right-0 text-7xl"/>
-        <Watermark text="Brand Ranks" className="absolute bottom-40 left-0 text-7xl"/>
-        <Watermark text="Brand Ranks" className="absolute bottom-40 right-0 text-7xl"/>
-        <Watermark text="Brand Ranks" className="absolute top-80 left-96 text-7xl"/>
-        <Watermark text="Brand Ranks" className="absolute top-80 right-96 text-7xl"/> */}
-        {/* <Watermark text="Brand Ranks" /> */}
-        </foreignObject>
-        <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
+        <g transform={`translate(${MARGIN.left}, ${MARGIN.top})`}>
+          {/* Debug view */}
+          {isAnimating && (
+            <text x="10" y="-10" fontSize="12" fill="red">
+              Animation Running: {currentlyAnimatingSeries !== null ? `Series ${currentlyAnimatingSeries}` : 'All'}
+            </text>
+          )}
+        
           {axisElements}
           {useFirstColumnAsX && xAxisTicks.map(({ value, x }) => (
             <g key={value} transform={`translate(${x}, ${height})`}>
               <line y2="5" stroke={axisColor} />
-              <motion.text 
+              <text 
                 y="20" 
                 textAnchor="middle" 
                 fontSize="12" 
                 fill={axisColor}
-                transform={`translate(0, ${initialShowDecimals || !Number.isInteger(value) ? 5 : 0})`}
-                initial={{ opacity: 1 }}
-                animate={{ opacity: 1 }}
                 key={`${value}-${initialShowDecimals}-${initialDecimalPlaces}`}
               >
                 {formatAxisValue(value)}
-              </motion.text>
+              </text>
             </g>
           ))}
 
@@ -493,49 +594,37 @@ const LineChart: React.FC<LineChartProps> = ({
             if (originalIndex === -1 || !series) return null; 
             return (
               <g key={originalIndex}>
-                <motion.path
+                <path
+                  key={`line-${originalIndex}`}
                   ref={(el) => {
-                    if (el) pathRefs.current[originalIndex] = el as SVGPathElement;
+                    if (el) {
+                      pathRefs.current[originalIndex] = el as SVGPathElement;
+                    }
                   }}
                   d={series.pathData}
                   fill="none"
                   stroke={series.color}
                   strokeWidth={strokeWidth}
-                  initial={{ pathLength: 0 }}
-                  animate={controls}
-                  variants={{
-                    all: { pathLength: 1 },
-                    [originalIndex.toString()]: { pathLength: 1 },
-                  }}
-                  transition={{
-                    duration: series.animationDuration ?? 4,
-                    ease: "easeInOut",
-                  }}
-                  onUpdate={(latest) => {
-                    setAnimationProgress((prev: number[]): number[] => {
-                      const newProgress = [...prev];
-                      newProgress[originalIndex] = latest.pathLength as number;
-                      return newProgress;
-                    });
-                  }}
+                  strokeDasharray={pathRefs.current[originalIndex]?.getTotalLength() || 0}
+                  strokeDashoffset={
+                    (1 - (animationProgress[originalIndex] || 0)) * 
+                    (pathRefs.current[originalIndex]?.getTotalLength() || 0)
+                  }
                   className={
                     (focusedSeries === null && currentlyAnimatingSeries === null) || 
                     focusedSeries === originalIndex || 
                     currentlyAnimatingSeries === originalIndex 
-                      ? '' 
+                      ? styles.visiblePath 
                       : styles.unfocused
                   }
                 />
                 {pathRefs.current[originalIndex] && (
-                  <motion.g
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.5 }}
+                  <g
                     className={
                       (focusedSeries === null && currentlyAnimatingSeries === null) || 
                       focusedSeries === originalIndex || 
                       currentlyAnimatingSeries === originalIndex 
-                        ? '' 
+                        ? styles.visiblePath 
                         : styles.unfocused
                     }
                   >
@@ -544,163 +633,169 @@ const LineChart: React.FC<LineChartProps> = ({
                       if (!path) return null;
 
                       const progress = animationProgress[originalIndex] ?? 0;
+                      
+                      // Only render the label if there's progress
+                      if (progress <= 0) return null;
+                      
+                      const pathLength = path.getTotalLength();
                       const { x, y } = getPointAtLength(
                         path,
-                        progress * path.getTotalLength(),
+                        progress * pathLength,
                       );
+                      
+                      let labelX = x;
+                      let labelY = y;
+                      const labelDim = labelDimensions[originalIndex] ?? { width: 60, height: 20 };
+                      const padding = 6;
+                      const boxWidth = Math.max(labelDim.width, 100) + padding * 2;
+                      const boxHeight = Math.max(labelDim.height, 40) + padding * 2;
 
-                      // Only render the label if there's progress
-                      if (progress > 0) {
-                        let labelX = x;
-                        let labelY = y;
-                        const labelDim = labelDimensions[originalIndex] ?? { width: 60, height: 20 };
-                        const padding = 6;
-                        const boxWidth = Math.max(labelDim.width, 100) + padding * 2;
-                        const boxHeight = Math.max(labelDim.height, 40) + padding * 2;
+                      switch (series.labelPosition) {
+                        case "top":
+                          labelY -= boxHeight / 2 + 10;
+                          break;
+                        case "bottom":
+                          labelY += boxHeight / 2 + 10;
+                          break;
+                        case "left":
+                          labelX -= boxWidth / 2 + 10;
+                          break;
+                        case "right":
+                          labelX += boxWidth / 2 + 10;
+                          break;
+                        case "topLeft":
+                          labelX -= boxWidth / 2 + 5;
+                          labelY -= boxHeight / 2 + 5;
+                          break;
+                        case "topRight":
+                          labelX += boxWidth / 2 + 5;
+                          labelY -= boxHeight / 2 + 5;
+                          break;
+                        case "bottomLeft":
+                          labelX -= boxWidth / 2 + 5;
+                          labelY += boxHeight / 2 + 5;
+                          break;
+                        case "bottomRight":
+                          labelX += boxWidth / 2 + 5;
+                          labelY += boxHeight / 2 + 5;
+                          break;
+                      }
 
-                        switch (series.labelPosition) {
-                          case "top":
-                            labelY -= boxHeight / 2 + 10;
-                            break;
-                          case "bottom":
-                            labelY += boxHeight / 2 + 10;
-                            break;
-                          case "left":
-                            labelX -= boxWidth / 2 + 10;
-                            break;
-                          case "right":
-                            labelX += boxWidth / 2 + 10;
-                            break;
-                          case "topLeft":
-                            labelX -= boxWidth / 2 + 5;
-                            labelY -= boxHeight / 2 + 5;
-                            break;
-                          case "topRight":
-                            labelX += boxWidth / 2 + 5;
-                            labelY -= boxHeight / 2 + 5;
-                            break;
-                          case "bottomLeft":
-                            labelX -= boxWidth / 2 + 5;
-                            labelY += boxHeight / 2 + 5;
-                            break;
-                          case "bottomRight":
-                            labelX += boxWidth / 2 + 5;
-                            labelY += boxHeight / 2 + 5;
-                            break;
-                        }
+                      // Adjust label position to stay within chart boundaries
+                      ({ labelX, labelY } = adjustLabelPosition(labelX, labelY, boxWidth, boxHeight));
 
-                        // Adjust label position to stay within chart boundaries
-                        ({ labelX, labelY } = adjustLabelPosition(labelX, labelY, boxWidth, boxHeight));
+                      // Ensure boxWidth and boxHeight are positive
+                      const safeBoxWidth = Math.max(1, boxWidth);
+                      const safeBoxHeight = Math.max(1, boxHeight);
 
-                        // Ensure boxWidth and boxHeight are positive
-                        const safeBoxWidth = Math.max(1, boxWidth);
-                        const safeBoxHeight = Math.max(1, boxHeight);
-
-                        return (
-                          <>
-                            <circle cx={x} cy={y} r="4" fill={series.color} />
-                            <g transform={`translate(${labelX}, ${labelY})`}>
-                              <rect
+                      return (
+                        <>
+                          <circle cx={x} cy={y} r="4" fill={series.color} />
+                          <g transform={`translate(${labelX}, ${labelY})`}>
+                            <rect
+                              x={-safeBoxWidth / 2}
+                              y={-safeBoxHeight / 2}
+                              width={safeBoxWidth}
+                              height={safeBoxHeight}
+                              rx="4"
+                              ry="4"
+                              fill={series.labelBackgroundColor ?? labelBackgroundColor}
+                            />
+                            {/* Render the labelComponent if provided */}
+                            {series.labelComponent ? (
+                              <foreignObject
                                 x={-safeBoxWidth / 2}
                                 y={-safeBoxHeight / 2}
                                 width={safeBoxWidth}
                                 height={safeBoxHeight}
-                                rx="4"
-                                ry="4"
-                                fill={series.labelBackgroundColor ?? labelBackgroundColor}
-                              />
-                              {/* Render the labelComponent if provided */}
-                              {series.labelComponent ? (
-                                <foreignObject
-                                  x={-safeBoxWidth / 2}
-                                  y={-safeBoxHeight / 2}
-                                  width={safeBoxWidth}
-                                  height={safeBoxHeight}
+                              >
+                                <div
+                                  className={
+                                    (focusedSeries === null && currentlyAnimatingSeries === null) || 
+                                    focusedSeries === originalIndex || 
+                                    currentlyAnimatingSeries === originalIndex 
+                                      ? '' 
+                                      : styles.unfocused
+                                  }
                                 >
-                                  <div
-                                    className={
-                                      (focusedSeries === null && currentlyAnimatingSeries === null) || 
-                                      focusedSeries === originalIndex || 
-                                      currentlyAnimatingSeries === originalIndex 
-                                        ? '' 
-                                        : styles.unfocused
-                                    }
-                                  >
-                                    {series.labelComponent}
-                                  </div>
-                                </foreignObject>
-                              ) : (
-                                <text
-                                  x="0"
-                                  y="0"
-                                  dy="0.35em"
-                                  textAnchor="middle"
-                                  fontSize="12"
-                                  fill={labelColor}
-                                >
-                                  {series.label ?? ''}
-                                </text>
-                              )}
-                            </g>
-                          </>
-                        );
-                      }
-                      return null;
+                                  {series.labelComponent}
+                                </div>
+                              </foreignObject>
+                            ) : (
+                              <text
+                                x="0"
+                                y="0"
+                                dy="0.35em"
+                                textAnchor="middle"
+                                fontSize="12"
+                                fill={labelColor}
+                              >
+                                {series.label ?? ''}
+                              </text>
+                            )}
+                          </g>
+                        </>
+                      );
                     })()}
-                  </motion.g>
+                  </g>
                 )}
               </g>
             );
           })}
 
           {/* Legend */}
-          <AnimatePresence>
-            {showLegend && (
-              <motion.g
-                transform={`translate(${width / 2}, 10)`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <rect
-                  x={-width / 2 + MARGIN.left}
-                  y="-25"
-                  width={Math.max(1, width - MARGIN.left - MARGIN.right)}
-                  height="40"
-                  fill={legendBackgroundColor}
-                  rx="5"
-                  ry="5"
-                />
-                {pathDataArray.map((series, index) => {
-                  const availableWidth = Math.max(1, width - MARGIN.left - MARGIN.right);
-                  const itemWidth = Math.max(1, Math.min(150, availableWidth / Math.max(1, pathDataArray.length)));
-                  const totalWidth = Math.max(1, pathDataArray.length * itemWidth);
-                  const startX = -totalWidth / 2;
-                  const seriesId = series.title ?? `series-${index}`;
-                  return (
-                    <g
-                      key={seriesId}
-                      transform={`translate(${startX + index * itemWidth}, 0)`}
-                      onClick={() => handleLegendClick(index)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          handleLegendClick(index);
-                          e.preventDefault();
-                        }
-                      }}
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`Toggle ${series.title ?? 'Untitled'} series`}
-                      style={{ cursor: !isAnimating ? "pointer" : "default" }}
-                      className={
-                        (focusedSeries === null && !isAnimating) || 
-                        focusedSeries === index || 
-                        currentlyAnimatingSeries === index 
-                          ? '' 
-                          : styles.unfocused
+          {showLegend && (
+            <g
+              transform={`translate(${width / 2}, 10)`}
+            >
+              <rect
+                x={-width / 2 + MARGIN.left}
+                y="-25"
+                width={Math.max(1, width - MARGIN.left - MARGIN.right)}
+                height="40"
+                fill={legendBackgroundColor}
+                rx="5"
+                ry="5"
+              />
+              {pathDataArray.map((series, index) => {
+                const availableWidth = Math.max(1, width - MARGIN.left - MARGIN.right);
+                const itemWidth = Math.max(1, Math.min(150, availableWidth / Math.max(1, pathDataArray.length)));
+                const totalWidth = Math.max(1, pathDataArray.length * itemWidth);
+                const startX = -totalWidth / 2;
+                const seriesId = series.title ?? `series-${index}`;
+                return (
+                  <button
+                    type="button"
+                    key={seriesId}
+                    onClick={() => handleLegendClick(index)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        handleLegendClick(index);
+                        e.preventDefault();
                       }
-                    >
+                    }}
+                    aria-label={`Toggle ${series.title ?? 'Untitled'} series`}
+                    style={{ 
+                      cursor: !isAnimating ? "pointer" : "default",
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      margin: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      transform: `translate(${startX + index * itemWidth}, 0)`
+                    }}
+                    className={
+                      (focusedSeries === null && !isAnimating) || 
+                      focusedSeries === index || 
+                      currentlyAnimatingSeries === index 
+                        ? '' 
+                        : styles.unfocused
+                    }
+                    disabled={isAnimating}
+                  >
+                    <svg width="100" height="20" aria-hidden="true">
+                      <title>{series.title ?? `Series ${index + 1}`}</title>
                       <rect
                         width="10"
                         height="10"
@@ -714,16 +809,23 @@ const LineChart: React.FC<LineChartProps> = ({
                         fontSize="12"
                         fill={legendTextColor}
                       >
-                        {(series.title ?? 'Untitled').length > 15 
-                          ? `${(series.title ?? 'Untitled').substring(0, 15)}...`
-                          : (series.title ?? 'Untitled')}
+                        {series.title ?? `Series ${index + 1}`}
                       </text>
-                    </g>
-                  );
-                })}
-              </motion.g>
-            )}
-          </AnimatePresence>
+                    </svg>
+                  </button>
+                );
+              })}
+              <text
+                x="10"
+                y={height + MARGIN.bottom - 35}
+                fill={legendTextColor}
+                fontSize="16"
+                fontWeight="bold"
+              >
+                Legend
+              </text>
+            </g>
+          )}
         </g>
       </svg>
     </div>
