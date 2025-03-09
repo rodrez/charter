@@ -1,12 +1,12 @@
 import { useMemo, useEffect, useRef, useState, useCallback } from "react";
 import type { FC } from "react";
-import { motion, useAnimation, AnimatePresence } from "framer-motion";
+import { useAnimation} from "framer-motion";
 import type { LineChartProps } from "@/lib/types/line-chart";
 import styles from './line-chart.module.css';
 import './line-chart.css'; // Import global CSS
 import { useDebounceResize } from '@/lib/hooks/useDebounceResize';
 import { useAnimationStore } from "@/lib/store";
-import Watermark from "../watermark";
+// import Watermark from "../watermark";
 import { cn } from "@/lib/utils";
 
 const MARGIN = { top: 20, right: 40, bottom: 50, left: 60 }; // Moved outside the component
@@ -229,7 +229,7 @@ const LineChart: FC<LineChartProps> = ({
   // Ensure path refs are updated properly and measure lengths when paths change
   useEffect(() => {
     // Reset path refs array with the correct size
-    pathRefs.current = Array(updatedDataSeries.length).fill(null);
+    pathRefs.current = Array(updatedDataSeries.length).fill(null) as (SVGPathElement | null)[];
     
     // Short delay to ensure DOM elements are rendered
     const timeoutId = setTimeout(() => {
@@ -688,7 +688,7 @@ const LineChart: FC<LineChartProps> = ({
                     key={`line-${originalIndex}-animated`}
                     ref={(el) => {
                       if (el) {
-                        pathRefs.current[originalIndex] = el as SVGPathElement;
+                        pathRefs.current[originalIndex] = el;
                         // Store the path length when the ref is created
                         const pathLength = el.getTotalLength();
                         // Force a small render to apply initial styles
@@ -707,9 +707,9 @@ const LineChart: FC<LineChartProps> = ({
                     vectorEffect="non-scaling-stroke"
                     shapeRendering="geometricPrecision"
                     style={{
-                      strokeDasharray: pathRefs.current[originalIndex]?.getTotalLength() || 0,
-                      strokeDashoffset: ((1 - (animationProgress[originalIndex] || 0)) * 
-                        (pathRefs.current[originalIndex]?.getTotalLength() || 0))
+                      strokeDasharray: pathRefs.current[originalIndex]?.getTotalLength() ?? 0,
+                      strokeDashoffset: ((1 - (animationProgress[originalIndex] ?? 0)) * 
+                        (pathRefs.current[originalIndex]?.getTotalLength() ?? 0))
                     }}
                     className={
                       `${(focusedSeries === null && currentlyAnimatingSeries === null) || 

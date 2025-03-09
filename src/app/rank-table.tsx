@@ -76,7 +76,7 @@ TableRowItem.displayName = 'TableRowItem';
 
 const AnimatedTable: React.FC<AnimatedTableProps> = ({
   data,
-  sortDelay = 501,
+  // sortDelay = 501,
   decimalPlaces = 3,
   lowerIsBetter = false,
   completedIds = [],
