@@ -142,14 +142,52 @@ export default function TestPage() {
     }, 500); // Adjust this delay as needed
   };
 
-  const handleStartAnimation = () => {
+  const handleStartAnimation = useCallback(() => {
     console.log('loadedData', loadedData);
     
     // Reset animation state first
     setIsAnimationStarted(false);
     setData([]);
-    setTableData(activeView !== 'table' ? [] : (prevTableData) => prevTableData);
     setCompletedAnimations(new Set());
+    
+    // Handle table data differently based on the active view
+    if (activeView === 'table') {
+      // For table-only view, initialize with all items
+      if (loadedData.length > 0) {
+        const tableItems = loadedData.map((series, index) => {
+          const maxValue = Math.max(...series.data.map(point => point.y));
+          return {
+            id: `series-${index}`,
+            name: typeof series.label === 'string' ? series.label : `Series ${index + 1}`,
+            value: maxValue
+          };
+        });
+        setTableData(tableItems);
+        
+        // Mark all series as completed for table-only view
+        setCompletedAnimations(new Set(tableItems.map(item => item.id)));
+      } else {
+        setTableData([]);
+      }
+    } else {
+      // For chart or both views, initialize with just the first item
+      if (loadedData.length > 0) {
+        const firstSeries = loadedData[0];
+        if (firstSeries && firstSeries.data.length > 0) {
+          const maxValue = Math.max(...firstSeries.data.map(point => point.y));
+          
+          setTableData([{
+            id: "series-0",
+            name: typeof firstSeries.label === 'string' ? firstSeries.label : "Series 1",
+            value: maxValue
+          }]);
+        } else {
+          setTableData([]);
+        }
+      } else {
+        setTableData([]);
+      }
+    }
     
     // Use requestAnimationFrame to ensure DOM has updated before starting animation
     requestAnimationFrame(() => {
@@ -159,18 +197,51 @@ export default function TestPage() {
         setData(loadedData);
       }, 50);
     });
-  };
+  }, [loadedData, activeView]);
 
   const handleRestartAnimation = useCallback(() => {
     // Reset animation state
     setIsAnimationStarted(false);
     setData([]);
-    
-    // Only reset table data if we're not in table-only view
-    if (activeView !== 'table') {
-      setTableData([]);
-    }
     setCompletedAnimations(new Set());
+    
+    // Handle table data differently based on the active view
+    if (activeView === 'table') {
+      // For table-only view, initialize with all items
+      if (loadedData.length > 0) {
+        const tableItems = loadedData.map((series, index) => {
+          const maxValue = Math.max(...series.data.map(point => point.y));
+          return {
+            id: `series-${index}`,
+            name: typeof series.label === 'string' ? series.label : `Series ${index + 1}`,
+            value: maxValue
+          };
+        });
+        setTableData(tableItems);
+        
+        // Mark all series as completed for table-only view
+        setCompletedAnimations(new Set(tableItems.map(item => item.id)));
+      } else {
+        setTableData([]);
+      }
+    } else {
+      // For chart or both views, reset table data
+      setTableData([]);
+      
+      // Initialize with just the first item if available
+      if (loadedData.length > 0) {
+        const firstSeries = loadedData[0];
+        if (firstSeries && firstSeries.data.length > 0) {
+          const maxValue = Math.max(...firstSeries.data.map(point => point.y));
+          
+          setTableData([{
+            id: "series-0",
+            name: typeof firstSeries.label === 'string' ? firstSeries.label : "Series 1",
+            value: maxValue
+          }]);
+        }
+      }
+    }
 
     // Use nested requestAnimationFrame for smoother animation restart
     requestAnimationFrame(() => {
@@ -185,18 +256,37 @@ export default function TestPage() {
   }, [loadedData, activeView]);
 
   const handleAnimationComplete = useCallback((maxValue: { id: string; name: string; value: number }) => {
-    setTableData(prevData => {
-      // Check if this animation has already been completed
-      if (!completedAnimations.has(maxValue.id)) {
-        setCompletedAnimations(prev => new Set(prev).add(maxValue.id));
-        // Only add the new entry if it doesn't already exist
+    console.log('Animation completed for:', maxValue);
+    
+    // Update the completedAnimations set first
+    setCompletedAnimations(prev => {
+      const newSet = new Set(prev);
+      newSet.add(maxValue.id);
+      return newSet;
+    });
+    
+    // For the first item (series-0), update its value if it's already in the table
+    // For other items, add them to the table if they don't exist
+    const animationDelay = 500; // 0.5 seconds delay
+    
+    setTimeout(() => {
+      setTableData(prevData => {
+        // If it's the first item and it already exists, update its value
+        if (maxValue.id === "series-0") {
+          return prevData.map(item => 
+            item.id === "series-0" ? { ...item, value: maxValue.value } : item
+          );
+        }
+        
+        // For other items, only add if they don't already exist
         if (!prevData.some(item => item.id === maxValue.id)) {
           return [...prevData, maxValue];
         }
-      }
-      return prevData;
-    });
-  }, [completedAnimations]);
+        
+        return prevData;
+      });
+    }, animationDelay);
+  }, []);
 
   useEffect(() => {
     if (isAnimationStarted) {
@@ -219,15 +309,33 @@ export default function TestPage() {
     };
   }, []);
 
-  const toggleView = () => {
+  const toggleView = useCallback(() => {
     setActiveView(current => {
-      switch (current) {
-        case 'chart': return 'both';
-        case 'both': return 'table';
-        case 'table': return 'chart';
+      const nextView = current === 'chart' ? 'both' : 
+                       current === 'both' ? 'table' : 'chart';
+      
+      // If switching to table-only view, make sure all items are shown
+      if (nextView === 'table' && isAnimationStarted) {
+        // Initialize table with all items
+        if (loadedData.length > 0) {
+          const tableItems = loadedData.map((series, index) => {
+            const maxValue = Math.max(...series.data.map(point => point.y));
+            return {
+              id: `series-${index}`,
+              name: typeof series.label === 'string' ? series.label : `Series ${index + 1}`,
+              value: maxValue
+            };
+          });
+          setTableData(tableItems);
+          
+          // Mark all series as completed for table-only view
+          setCompletedAnimations(new Set(tableItems.map(item => item.id)));
+        }
       }
+      
+      return nextView;
     });
-  };
+  }, [loadedData, isAnimationStarted]);
 
   const exportToJson = () => {
     const jsonString = JSON.stringify(chartState, null, 2);
@@ -448,8 +556,8 @@ export default function TestPage() {
                   data={tableData} 
                   lowerIsBetter={chartState.lowerIsBetter} 
                   decimalPlaces={chartState.decimalPlaces}
-                  sortDelay={chartState.sortDelay}
                   completedIds={Array.from(completedAnimations)}
+                  chartAnimationsComplete={activeView === 'table'} // Force show all items in table-only view
                 />
               </div>
             )}

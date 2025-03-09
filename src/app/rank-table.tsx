@@ -26,6 +26,7 @@ interface AnimatedTableProps {
   decimalPlaces?: number;
   lowerIsBetter?: boolean;
   completedIds?: string[];
+  chartAnimationsComplete?: boolean;
 }
 
 // Create a properly typed TableRow component with motion once
@@ -50,22 +51,28 @@ const TableRowItem = memo(({ item, index, decimalPlaces }: {
       key={item.id}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.8 }}
-      layout
+      exit={{ opacity: 0, y: -20, transition: { duration: 0.2 } }}
+      transition={{ 
+        duration: 0.5,
+        type: "spring", 
+        stiffness: 120,
+        damping: 20,
+        delay: 0.1 // Small delay for a nicer entrance
+      }}
+      layout="position"
       className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-100'} relative`}
     >
-      <TableCell className="text-indigo-599 font-semibold text-center border-b-0">
+      <TableCell className="text-red-600 font-semibold text-center border-b-0">
         {item.rank}
       </TableCell>
-      <TableCell className="text-indigo-599 flex justify-start items-center gap-x-2 border-b-0">
+      <TableCell className="text-red-600 flex justify-start items-center gap-x-2 border-b-0">
         <Watermark className='text-xs absolute top-6 left-0' text='Brand Ranks' />
         <Image width={48} height={48} src={`/images/${item.name}.png`} alt={item.name} />
         {item.name}
         <Watermark className='text-xs absolute bottom-6 right-12' text='Brand Ranks' />
         <Watermark className='text-xs' text='Brand Ranks' />
       </TableCell>
-      <TableCell className="text-indigo-599 font-semibold text-left border-b-0">
+      <TableCell className="text-red-600 font-semibold text-left border-b-0">
         {formatValue(item.value, decimalPlaces)}
       </TableCell>
     </MotionTableRow>
@@ -80,88 +87,96 @@ const AnimatedTable: React.FC<AnimatedTableProps> = ({
   decimalPlaces = 3,
   lowerIsBetter = false,
   completedIds = [],
+  chartAnimationsComplete = false,
 }) => {
   const [sortedData, setSortedData] = useState<DataItem[]>([]);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [showTable, setShowTable] = useState(true);
   
   // Improved ranking algorithm with dense ranking (1223 ranking)
   const sortAndRankData = useCallback((data: DataItem[], lowerIsBetter: boolean): DataItem[] => {
     if (data.length === 0) return [];
     
     // First sort the data
-    const sorted = [...data].sort((a, b) => 
-      lowerIsBetter ? a.value - b.value : b.value - a.value
-    );
+    const sorted = [...data].sort((a, b) => {
+      return lowerIsBetter 
+        ? a.value - b.value 
+        : b.value - a.value;
+    });
     
-    // Group items by their value to handle ties properly
-    const valueGroups: Record<string, DataItem[]> = {};
-    
-    // Use for...of instead of forEach
-    for (const item of sorted) {
-      const valueKey = item.value.toString();
-      if (!valueGroups[valueKey]) {
-        valueGroups[valueKey] = [];
-      }
-      valueGroups[valueKey].push(item);
-    }
-    
-    // Assign ranks with dense ranking (1223 ranking)
+    // Then assign ranks (dense ranking: 1, 2, 2, 3, ...)
     let currentRank = 1;
-    const rankedData: DataItem[] = [];
+    let previousValue = sorted[0]?.value ?? 0; // Add null check with default value
     
-    // Get sorted unique values
-    const uniqueValues = Object.keys(valueGroups)
-      .map(v => Number.parseFloat(v))
-      .sort((a, b) => lowerIsBetter ? a - b : b - a);
-    
-    // Assign ranks to each group
-    for (const value of uniqueValues) {
-      const valueKey = value.toString();
-      const group = valueGroups[valueKey];
-      
-      if (group) {
-        // All items in this group get the same rank
-        for (const item of group) {
-          rankedData.push({
-            ...item,
-            rank: currentRank
-          });
-        }
-        // Next rank is one more than current, regardless of how many tied
-        currentRank++;
+    return sorted.map((item, index) => {
+      // If this value is different from the previous one, increment the rank
+      if (index > 0 && item.value !== previousValue) {
+        currentRank = index + 1;
+        previousValue = item.value;
       }
-    }
-    
-    return rankedData;
+      
+      return { ...item, rank: currentRank };
+    });
   }, []);
   
-  // Update sorted data when input data changes or completedIds changes
+  // Filter data to only include items that have completed animation
   useEffect(() => {
-    // First filter to only the visible items based on completedIds
-    const visibleItems = data.filter(item => completedIds.includes(item.id));
-    // Then rank only those visible items
-    const rankedData = sortAndRankData(visibleItems, lowerIsBetter);
-    setSortedData(rankedData);
-  }, [data, lowerIsBetter, sortAndRankData, completedIds]);
-
-  // No need for a separate effect to update visibleIds
-  // We've already filtered for visible items above
-  
-  // No need to filter again - sortedData now contains only the visible items with proper ranks
-  const visibleData = sortedData;
+    // Always include the first item, plus any completed animations
+    let filteredData: DataItem[] = [];
+    
+    // If chartAnimationsComplete is true (table-only view) or all items are completed, show all items
+    if (chartAnimationsComplete || (data.length > 0 && data.every(item => completedIds.includes(item.id)))) {
+      filteredData = [...data];
+    } else if (data.length > 0) {
+      // Always include the first item if it exists
+      const firstItem = data[0];
+      
+      if (firstItem) {
+        // Start with the first item
+        filteredData = [firstItem];
+        
+        // Then add any completed items (excluding the first item to avoid duplicates)
+        if (completedIds.length > 0) {
+          const completedItems = data.filter(item => 
+            completedIds.includes(item.id) && item.id !== firstItem.id
+          );
+          
+          // Add completed items to filtered data (avoiding duplicates)
+          for (const item of completedItems) {
+            // Only add if not already in filteredData
+            if (!filteredData.some(existing => existing.id === item.id)) {
+              filteredData.push(item);
+            }
+          }
+        }
+      }
+    }
+    
+    // Update animation state based on whether we have data
+    const hasData = filteredData.length > 0;
+    setShowTable(hasData);
+    setIsAnimating(hasData);
+    
+    const ranked = sortAndRankData(filteredData, lowerIsBetter);
+    setSortedData(ranked);
+  }, [data, lowerIsBetter, sortAndRankData, completedIds, chartAnimationsComplete]);
 
   return (
     <div className="flex justify-center relative shadow-lg rounded-lg overflow-hidden bg-white">
       <Table className="w-full rounded-lg overflow-hidden table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[15%] bg-indigo-600 text-white font-semibold text-center">Rank</TableHead>
-            <TableHead className="w-[61%] bg-indigo-600 text-white font-semibold text-left">Name</TableHead>
-            <TableHead className="w-[31%] bg-indigo-600 text-white font-semibold text-left">Value</TableHead>
+            <TableHead className="w-[15%] bg-red-600 text-white font-semibold text-center">Rank</TableHead>
+            <TableHead className="w-[61%] bg-red-600 text-white font-semibold text-left">Name</TableHead>
+            <TableHead className="w-[31%] bg-red-600 text-white font-semibold text-left">Value</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody className='relative'>
-          <AnimatePresence mode="sync">
-            {visibleData.map((item, index) => (
+          <AnimatePresence 
+            mode="sync" 
+            initial={false}
+          >
+            {showTable && sortedData.map((item, index) => (
               <TableRowItem 
                 key={item.id}
                 item={item}
