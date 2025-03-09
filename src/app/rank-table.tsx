@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 
@@ -25,17 +25,18 @@ interface AnimatedTableProps {
   sortDelay?: number;
   decimalPlaces?: number;
   lowerIsBetter?: boolean;
+  completedIds?: string[];
 }
 
-const AnimatedTable: React.FC<AnimatedTableProps> = ({
-  data,
-  sortDelay = 501,
-  decimalPlaces = 3,
-  lowerIsBetter = false,
-}) => {
-  const [sortedData, setSortedData] = useState<DataItem[]>(data);
+// Create a properly typed TableRow component with motion once
+const MotionTableRow = motion(TableRow);
 
-  // Added return type annotation
+// Memoized row component to prevent unnecessary re-renders
+const TableRowItem = memo(({ item, index, decimalPlaces }: { 
+  item: DataItem; 
+  index: number;
+  decimalPlaces: number;
+}) => {
   const formatValue = (value: number, decimalPlaces: number): string => {
     if (value % 1 === 0) {
       // If value is an integer, don't show decimal places
@@ -44,47 +45,109 @@ const AnimatedTable: React.FC<AnimatedTableProps> = ({
     return value.toFixed(decimalPlaces);
   };
 
-  // Added proper typings and adjusted ranking logic
-  const sortAndRankData = (data: DataItem[], lowerIsBetter: boolean): DataItem[] => {
+  return (
+    <MotionTableRow
+      key={item.id}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.8 }}
+      layout
+      className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-100'} relative`}
+    >
+      <TableCell className="text-indigo-599 font-semibold text-center border-b-0">
+        {item.rank}
+      </TableCell>
+      <TableCell className="text-indigo-599 flex justify-start items-center gap-x-2 border-b-0">
+        <Watermark className='text-xs absolute top-6 left-0' text='Brand Ranks' />
+        <Image width={48} height={48} src={`/images/${item.name}.png`} alt={item.name} />
+        {item.name}
+        <Watermark className='text-xs absolute bottom-6 right-12' text='Brand Ranks' />
+        <Watermark className='text-xs' text='Brand Ranks' />
+      </TableCell>
+      <TableCell className="text-indigo-599 font-semibold text-left border-b-0">
+        {formatValue(item.value, decimalPlaces)}
+      </TableCell>
+    </MotionTableRow>
+  );
+});
+
+TableRowItem.displayName = 'TableRowItem';
+
+const AnimatedTable: React.FC<AnimatedTableProps> = ({
+  data,
+  sortDelay = 501,
+  decimalPlaces = 3,
+  lowerIsBetter = false,
+  completedIds = [],
+}) => {
+  const [sortedData, setSortedData] = useState<DataItem[]>([]);
+  
+  // Improved ranking algorithm with dense ranking (1223 ranking)
+  const sortAndRankData = useCallback((data: DataItem[], lowerIsBetter: boolean): DataItem[] => {
+    if (data.length === 0) return [];
+    
+    // First sort the data
     const sorted = [...data].sort((a, b) => 
       lowerIsBetter ? a.value - b.value : b.value - a.value
     );
-  
-    if (sorted.length === 0) return [];
-  
-    let currentRank = 1;
-    let previousValue = sorted[0]?.value;
-    let tiesCount = 0; // Count of items with the same rank
-  
-    const rankedData: DataItem[] = sorted.map((item) => {
-      if (item.value !== previousValue) {
-        currentRank += tiesCount; // Move currentRank up by the number of ties
-        tiesCount = 1; // Reset ties count, start at 1 for the current item
-      } else {
-        tiesCount++; // Increment ties count for items with the same value
+    
+    // Group items by their value to handle ties properly
+    const valueGroups: Record<string, DataItem[]> = {};
+    
+    // Use for...of instead of forEach
+    for (const item of sorted) {
+      const valueKey = item.value.toString();
+      if (!valueGroups[valueKey]) {
+        valueGroups[valueKey] = [];
       }
+      valueGroups[valueKey].push(item);
+    }
+    
+    // Assign ranks with dense ranking (1223 ranking)
+    let currentRank = 1;
+    const rankedData: DataItem[] = [];
+    
+    // Get sorted unique values
+    const uniqueValues = Object.keys(valueGroups)
+      .map(v => Number.parseFloat(v))
+      .sort((a, b) => lowerIsBetter ? a - b : b - a);
+    
+    // Assign ranks to each group
+    for (const value of uniqueValues) {
+      const valueKey = value.toString();
+      const group = valueGroups[valueKey];
       
-      previousValue = item.value;
-  
-      return {
-        ...item,
-        rank: currentRank,
-      };
-    });
-  
+      if (group) {
+        // All items in this group get the same rank
+        for (const item of group) {
+          rankedData.push({
+            ...item,
+            rank: currentRank
+          });
+        }
+        // Next rank is one more than current, regardless of how many tied
+        currentRank++;
+      }
+    }
+    
     return rankedData;
-  };
+  }, []);
   
-  
-
+  // Update sorted data when input data changes or completedIds changes
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const rankedData = sortAndRankData(data, lowerIsBetter);
-      setSortedData(rankedData);
-    }, sortDelay);
+    // First filter to only the visible items based on completedIds
+    const visibleItems = data.filter(item => completedIds.includes(item.id));
+    // Then rank only those visible items
+    const rankedData = sortAndRankData(visibleItems, lowerIsBetter);
+    setSortedData(rankedData);
+  }, [data, lowerIsBetter, sortAndRankData, completedIds]);
+
+  // No need for a separate effect to update visibleIds
+  // We've already filtered for visible items above
   
-    return () => clearTimeout(timer);
-  }, [data, sortDelay, lowerIsBetter]);
+  // No need to filter again - sortedData now contains only the visible items with proper ranks
+  const visibleData = sortedData;
 
   return (
     <div className="flex justify-center relative shadow-lg rounded-lg overflow-hidden bg-white">
@@ -97,31 +160,14 @@ const AnimatedTable: React.FC<AnimatedTableProps> = ({
           </TableRow>
         </TableHeader>
         <TableBody className='relative'>
-          <AnimatePresence>
-            {sortedData.map((item: DataItem, index: number) => (
-              <motion.tr
+          <AnimatePresence mode="sync">
+            {visibleData.map((item, index) => (
+              <TableRowItem 
                 key={item.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 1.3 }}
-                layout
-                className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-100'} relative`}
-              >
-                <TableCell className="text-indigo-599 font-semibold text-center border-b-0">
-                  {item.rank}
-                </TableCell>
-                <TableCell className="text-indigo-599 flex justify-start items-center gap-x-2 border-b-0">
-                  <Watermark className='text-xs absolute top-6 left-0' text='Brand Ranks' />
-                  <Image width={48} height={48} src={`/images/${item.name}.png`} alt={item.name} />
-                  {item.name}
-                  <Watermark className='text-xs absolute bottom-6 right-12' text='Brand Ranks' />
-                  <Watermark className='text-xs' text='Brand Ranks' />
-                </TableCell>
-                <TableCell className="text-indigo-599 font-semibold text-left border-b-0">
-                  {formatValue(item.value, decimalPlaces)}
-                </TableCell>
-              </motion.tr>
+                item={item}
+                index={index}
+                decimalPlaces={decimalPlaces}
+              />
             ))}
           </AnimatePresence>
         </TableBody>
@@ -130,4 +176,4 @@ const AnimatedTable: React.FC<AnimatedTableProps> = ({
   );
 };
 
-export default AnimatedTable;
+export default React.memo(AnimatedTable);

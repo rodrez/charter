@@ -12,12 +12,16 @@ interface OptionsTabProps {
   showHorizontalGridLines: boolean;
   yAxisPadding: number;
   xAxisPadding: number;
+  sortDelay: number;
+  lowerIsBetter: boolean;
   setShowLegend: (show: boolean) => void;
   setSkipZeroes: (skip: boolean) => void;
   setShowHorizontalGridLines: (show: boolean) => void;
   setStaggered: (staggered: boolean) => void;
   setDelay: (delay: number) => void;
   setCurved: (curved: boolean) => void;
+  setSortDelay: (delay: number) => void;
+  setLowerIsBetter: (lower: boolean) => void;
   useFirstColumnAsX: boolean;
   setUseFirstColumnAsX: (use: boolean) => void;
   showDecimals: boolean;
@@ -71,6 +75,10 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
   yAxisTitle,
   setXAxisTitle,
   setYAxisTitle,
+  sortDelay,
+  setSortDelay,
+  lowerIsBetter,
+  setLowerIsBetter,
 }) => {
   return (
     <div className="space-y-8">
@@ -97,7 +105,6 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
             <Label htmlFor="max-value-axis">Max Value Axis for Table</Label>
             <SwitchOption id="max-value-axis" checked={maxValueAxis === 'x'} onCheckedChange={(checked) => setMaxValueAxis(checked ? 'x' : 'y')} label={maxValueAxis === 'x' ? 'Using X Axis' : 'Using Y Axis'} />
           </div>
-
         </div>
       </div>
 
@@ -106,6 +113,14 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
         <div className="grid grid-cols-2 gap-4">
           <SwitchOption id="staggered" checked={staggered} onCheckedChange={setStaggered} label="Staggered" />
           <NumberInput id="delay" value={delay} onChange={setDelay} label="Delay" />
+          <NumberInput id="sort-delay" value={sortDelay} onChange={setSortDelay} label="Table Animation Duration" />
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Table Options</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <SwitchOption id="lower-is-better" checked={lowerIsBetter} onCheckedChange={setLowerIsBetter} label="Lower Values Are Better" />
         </div>
       </div>
 

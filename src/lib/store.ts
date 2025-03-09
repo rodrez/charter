@@ -27,6 +27,8 @@ export interface ChartState {
   axisTitleColor: string;
   isZoomed: boolean;
   maxValueAxis: 'x' | 'y';
+  sortDelay: number;
+  lowerIsBetter: boolean;
   setChartState: (state: Partial<ChartState>) => void;
 }
 
@@ -59,6 +61,8 @@ export const useChartStore = create(
       axisTitleColor: "#000000",
       isZoomed: false,
       maxValueAxis: 'x',
+      sortDelay: 2000,
+      lowerIsBetter: false,
       setChartState: (state) => set(state),
     }),
     {

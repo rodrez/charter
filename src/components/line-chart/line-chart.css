@@ -1,0 +1,9 @@
+/* Global styles for SVG animations */
+svg path {
+  transition: stroke-dashoffset 0.01s linear;
+}
+
+.completed-path {
+  stroke-dashoffset: 0 !important;
+  transition: none !important;
+} 

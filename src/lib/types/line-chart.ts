@@ -16,6 +16,7 @@ export interface LineChartProps {
   dataSeries: DataSeries[];
   staggered?: boolean;
   delay?: number;
+  sortDelay?: number;
   curved?: boolean;
   showLegend?: boolean;
   axisColor?: string;

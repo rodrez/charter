@@ -348,6 +348,10 @@ export default function TestPage() {
             setAxisTitleColor={(color) => chartState.setChartState({ axisTitleColor: color })}
             setMaxValueAxis={(maxValueAxis) => chartState.setChartState({ maxValueAxis: maxValueAxis })}
             maxValueAxis={chartState.maxValueAxis}
+            sortDelay={chartState.sortDelay}
+            setSortDelay={(delay) => chartState.setChartState({ sortDelay: delay })}
+            lowerIsBetter={chartState.lowerIsBetter}
+            setLowerIsBetter={(lower) => chartState.setChartState({ lowerIsBetter: lower })}
           />
 
           {isDataLoaded && (
@@ -410,6 +414,7 @@ export default function TestPage() {
                   showLegend={chartState.showLegend}
                   staggered={chartState.staggered}
                   delay={chartState.delay}
+                  sortDelay={chartState.sortDelay}
                   axisColor={chartState.axisColor}
                   labelColor={chartState.labelColor}
                   skipZeroes={chartState.skipZeroes}
@@ -441,8 +446,10 @@ export default function TestPage() {
               } h-full overflow-auto mx-auto mt-4 p-3`}>
                 <AnimatedTable 
                   data={tableData} 
-                  decimalPlaces={chartState.decimalPlaces} 
-                  lowerIsBetter={false} 
+                  lowerIsBetter={chartState.lowerIsBetter} 
+                  decimalPlaces={chartState.decimalPlaces}
+                  sortDelay={chartState.sortDelay}
+                  completedIds={Array.from(completedAnimations)}
                 />
               </div>
             )}

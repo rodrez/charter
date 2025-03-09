@@ -62,6 +62,10 @@ interface ChartControlsProps {
   setXAxisTitle: (title: string) => void;
   setYAxisTitle: (title: string) => void;
   setAxisTitleColor: (color: string) => void;
+  sortDelay: number;
+  setSortDelay: (delay: number) => void;
+  lowerIsBetter: boolean;
+  setLowerIsBetter: (lower: boolean) => void;
 }
 
 const ChartControls: React.FC<ChartControlsProps> = ({
@@ -119,6 +123,10 @@ const ChartControls: React.FC<ChartControlsProps> = ({
   setXAxisTitle,
   setYAxisTitle,
   setAxisTitleColor,
+  sortDelay,
+  setSortDelay,
+  lowerIsBetter,
+  setLowerIsBetter,
 }) => {
   return (
     <Card className="mb-8" style={{ backgroundColor: chartBackgroundColor }}>
@@ -196,6 +204,10 @@ const ChartControls: React.FC<ChartControlsProps> = ({
               setXAxisPadding={setXAxisPadding}
               maxValueAxis={maxValueAxis}
               setMaxValueAxis={setMaxValueAxis}
+              sortDelay={sortDelay}
+              setSortDelay={setSortDelay}
+              lowerIsBetter={lowerIsBetter}
+              setLowerIsBetter={setLowerIsBetter}
             />
           </TabsContent>
         </Tabs>

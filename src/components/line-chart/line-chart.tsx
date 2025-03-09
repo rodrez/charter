@@ -3,6 +3,7 @@ import type { FC } from "react";
 import { motion, useAnimation, AnimatePresence } from "framer-motion";
 import type { LineChartProps } from "@/lib/types/line-chart";
 import styles from './line-chart.module.css';
+import './line-chart.css'; // Import global CSS
 import { useDebounceResize } from '@/lib/hooks/useDebounceResize';
 import { useAnimationStore } from "@/lib/store";
 import Watermark from "../watermark";
@@ -14,6 +15,7 @@ const LineChart: FC<LineChartProps> = ({
   dataSeries,
   staggered = false,
   delay = 0.5,
+  sortDelay = 501,
   curved = false,
   showLegend = true,
   axisColor = "black",
@@ -48,6 +50,7 @@ const LineChart: FC<LineChartProps> = ({
   const [focusedSeries, setFocusedSeries] = useState<number | null>(null);
   const [currentlyAnimatingSeries, setCurrentlyAnimatingSeries] = useState<number | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [completedSeries, setCompletedSeries] = useState<Set<number>>(new Set());
 
   const onAnimationCompleteRef = useRef(onAnimationComplete);
 
@@ -223,10 +226,24 @@ const LineChart: FC<LineChartProps> = ({
     Array(updatedDataSeries.length).fill(0),
   );
   
-  // Initialize path refs array when data changes
+  // Ensure path refs are updated properly and measure lengths when paths change
   useEffect(() => {
+    // Reset path refs array with the correct size
     pathRefs.current = Array(updatedDataSeries.length).fill(null);
-  }, [updatedDataSeries.length]);
+    
+    // Short delay to ensure DOM elements are rendered
+    const timeoutId = setTimeout(() => {
+      // Check if any paths are available and log their lengths
+      const availablePaths = pathRefs.current.filter(Boolean);
+      if (availablePaths.length > 0) {
+        console.log(`Path references initialized. Found ${availablePaths.length} paths.`);
+        // Initialize animation progress to 0 for all paths
+        setAnimationProgress(Array(updatedDataSeries.length).fill(0));
+      }
+    }, 50);
+    
+    return () => clearTimeout(timeoutId);
+  }, [updatedDataSeries]);
 
   const getPointAtLength = (path: SVGPathElement | null, length: number) => {
     if (!path) return { x: 0, y: 0 };
@@ -271,13 +288,12 @@ const LineChart: FC<LineChartProps> = ({
       // Set animation state
       isAnimatingRef.current = true;
       setIsAnimating(true);
-      
-      // Simple delay function
-      const waitMs = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      // Reset completed series
+      setCompletedSeries(new Set());
       
       try {
         if (staggered) {
-          // Animate each line one by one with timeout protection
+          // Animate each line one by one with smoother animation
           for (let i = 0; i < pathDataArray.length; i++) {
             if (!isMountedRef.current) break;
             
@@ -289,102 +305,170 @@ const LineChart: FC<LineChartProps> = ({
               isLineBeingAnimated: true 
             });
             
-            // Use direct setState approach instead of framer-motion for more reliability
+            // Reset progress for this series
             setAnimationProgress((prev) => {
               const newProgress = [...prev];
-              // Start with progress 0
               newProgress[i] = 0;
               return newProgress;
             });
             
-            // Manually animate the path using timeouts instead of Framer Motion
-            const steps = 20; // Number of animation steps
-            const stepDuration = 100; // Duration of each step in ms
-            const totalDuration = steps * stepDuration;
-            
-            console.log(`Starting manual animation of series ${i}`);
-            
-            // Manual animation loop with timeout protection
-            for (let step = 1; step <= steps; step++) {
-              if (!isMountedRef.current) break;
+            // Use requestAnimationFrame for smoother animation
+            await new Promise<void>((resolve) => {
+              const startTime = performance.now();
+              const duration = sortDelay; // Use sortDelay instead of hardcoded 2000ms
               
-              const progress = step / steps;
-              console.log(`Series ${i} animation progress: ${progress.toFixed(2)}`);
+              // Cubic easing function for smoother motion
+              const easeInOutCubic = (t: number): number => {
+                return t < 0.5
+                  ? 4 * t * t * t
+                  : 1 - ((-2 * t + 2) ** 3) / 2;
+              };
               
-              setAnimationProgress((prev) => {
-                const newProgress = [...prev];
-                newProgress[i] = progress;
-                return newProgress;
-              });
-              
-              await waitMs(stepDuration);
-            }
-            
-            // Ensure final state is set
-            if (isMountedRef.current) {
-              setAnimationProgress((prev) => {
-                const newProgress = [...prev];
-                newProgress[i] = 1;
-                return newProgress;
-              });
-              
-              // Report animation completion
-              console.log(`Completed animation for series ${i}`);
-              if (pathDataArray[i]) {
-                onAnimationCompleteRef.current?.({
-                  id: `series-${i}`,
-                  name: pathDataArray[i]?.title ?? `Series ${i + 1}`,
-                  value: Math.max(...(pathDataArray[i]?.data?.map((point) => point[maxValueAxis]) ?? [])),
+              const animate = (currentTime: number) => {
+                if (!isMountedRef.current) {
+                  resolve();
+                  return;
+                }
+                
+                const elapsedTime = currentTime - startTime;
+                const progress = Math.min(elapsedTime / duration, 1);
+                const easedProgress = easeInOutCubic(progress);
+                
+                // Only log every few frames to reduce console spam
+                if (Math.round(progress * 100) % 10 === 0) {
+                  console.log(`Series ${i} animation progress: ${easedProgress.toFixed(2)}`);
+                }
+                
+                // Update the progress state for animation
+                setAnimationProgress((prev) => {
+                  const newProgress = [...prev];
+                  newProgress[i] = easedProgress;
+                  return newProgress;
                 });
-              }
-            }
+                
+                // Directly update the SVG path for smoother animation
+                const path = pathRefs.current[i];
+                if (path) {
+                  const pathLength = path.getTotalLength();
+                  // Use the path's style property for smoother updates
+                  path.style.strokeDashoffset = `${(1 - easedProgress) * pathLength}`;
+                }
+                
+                if (progress < 1) {
+                  requestAnimationFrame(animate);
+                } else {
+                  // Ensure we set exactly 1 at the end
+                  setAnimationProgress((prev) => {
+                    const newProgress = [...prev];
+                    newProgress[i] = 1;
+                    return newProgress;
+                  });
+                  
+                  // Mark this series as completed
+                  setCompletedSeries(prev => {
+                    const newSet = new Set(prev);
+                    newSet.add(i);
+                    return newSet;
+                  });
+                  
+                  // Report animation completion
+                  console.log(`Completed animation for series ${i}`);
+                  if (pathDataArray[i]) {
+                    onAnimationCompleteRef.current?.({
+                      id: `series-${i}`,
+                      name: pathDataArray[i]?.title ?? `Series ${i + 1}`,
+                      value: Math.max(...(pathDataArray[i]?.data?.map((point) => point[maxValueAxis]) ?? [])),
+                    });
+                  }
+                  
+                  resolve();
+                }
+              };
+              
+              requestAnimationFrame(animate);
+            });
             
             // Wait before starting the next line
             if (i < pathDataArray.length - 1) {
-              await waitMs(delay * 1000);
+              await new Promise(resolve => setTimeout(resolve, delay * 1000));
             }
           }
         } else {
-          // Animate all lines simultaneously
+          // Animate all lines simultaneously with smoother animation
           setCurrentlyAnimatingSeries(null);
           useAnimationStore.setState({ isLineBeingAnimated: true });
           
           console.log('Animating all lines simultaneously');
           
-          // Manual animation for all lines simultaneously
-          const steps = 20; // Number of animation steps
-          const stepDuration = 100; // Duration of each step in ms
-          
           // Reset all progress
           setAnimationProgress(Array(pathDataArray.length).fill(0));
           
-          // Manual animation loop
-          for (let step = 1; step <= steps; step++) {
-            if (!isMountedRef.current) break;
+          // Use requestAnimationFrame for smoother animation
+          await new Promise<void>((resolve) => {
+            const startTime = performance.now();
+            const duration = sortDelay; // Use sortDelay instead of hardcoded 2000ms
             
-            const progress = step / steps;
-            console.log(`All series animation progress: ${progress.toFixed(2)}`);
+            // Cubic easing function for smoother motion
+            const easeInOutCubic = (t: number): number => {
+              return t < 0.5
+                ? 4 * t * t * t
+                : 1 - ((-2 * t + 2) ** 3) / 2;
+            };
             
-            setAnimationProgress(Array(pathDataArray.length).fill(progress));
-            
-            await waitMs(stepDuration);
-          }
-          
-          // Ensure final state
-          if (isMountedRef.current) {
-            setAnimationProgress(Array(pathDataArray.length).fill(1));
-            
-            // Report completion for all lines
-            pathDataArray.forEach((series, i) => {
-              if (isMountedRef.current) {
-                onAnimationCompleteRef.current?.({
-                  id: `series-${i}`,
-                  name: series?.title ?? `Series ${i + 1}`,
-                  value: Math.max(...(series?.data?.map((point) => point[maxValueAxis]) ?? [])),
-                });
+            const animate = (currentTime: number) => {
+              if (!isMountedRef.current) {
+                resolve();
+                return;
               }
-            });
-          }
+              
+              const elapsedTime = currentTime - startTime;
+              const progress = Math.min(elapsedTime / duration, 1);
+              const easedProgress = easeInOutCubic(progress);
+              
+              // Only log every few frames to reduce console spam
+              if (Math.round(progress * 100) % 10 === 0) {
+                console.log(`All series animation progress: ${easedProgress.toFixed(2)}`);
+              }
+              
+              // Update progress for all paths
+              setAnimationProgress(Array(pathDataArray.length).fill(easedProgress));
+              
+              // Directly update all SVG paths for smoother animation
+              for (const path of pathRefs.current) {
+                if (path) {
+                  const pathLength = path.getTotalLength();
+                  // Use the path's style property for smoother updates
+                  path.style.strokeDashoffset = `${(1 - easedProgress) * pathLength}`;
+                }
+              }
+              
+              if (progress < 1) {
+                requestAnimationFrame(animate);
+              } else {
+                // Ensure we set exactly 1 at the end
+                setAnimationProgress(Array(pathDataArray.length).fill(1));
+                
+                // Mark all series as completed
+                setCompletedSeries(new Set(Array.from({ length: pathDataArray.length }, (_, i) => i)));
+                
+                // Report completion for all lines
+                for (let i = 0; i < pathDataArray.length; i++) {
+                  const series = pathDataArray[i];
+                  if (isMountedRef.current && series) {
+                    onAnimationCompleteRef.current?.({
+                      id: `series-${i}`,
+                      name: series?.title ?? `Series ${i + 1}`,
+                      value: Math.max(...(series?.data?.map((point) => point[maxValueAxis]) ?? [])),
+                    });
+                  }
+                }
+                
+                resolve();
+              }
+            };
+            
+            requestAnimationFrame(animate);
+          });
         }
       } catch (error) {
         console.error('Animation error:', error);
@@ -420,7 +504,7 @@ const LineChart: FC<LineChartProps> = ({
         isMounted: isMountedRef.current
       });
     }
-  }, [pathDataArray, staggered, delay, maxValueAxis]);
+  }, [pathDataArray, staggered, delay, sortDelay, maxValueAxis]);
   
 
 
@@ -592,32 +676,74 @@ const LineChart: FC<LineChartProps> = ({
           {sortedPathDataArray.map((series) => {
             const originalIndex = pathDataArray.findIndex(s => s === series);
             if (originalIndex === -1 || !series) return null; 
+            
+            // Check if this series is completed to determine rendering approach
+            const isCompleted = completedSeries.has(originalIndex);
+            
             return (
               <g key={originalIndex}>
-                <path
-                  key={`line-${originalIndex}`}
-                  ref={(el) => {
-                    if (el) {
-                      pathRefs.current[originalIndex] = el as SVGPathElement;
+                {/* Animated path for drawing effect - only show during animation */}
+                {!isCompleted && (
+                  <path
+                    key={`line-${originalIndex}-animated`}
+                    ref={(el) => {
+                      if (el) {
+                        pathRefs.current[originalIndex] = el as SVGPathElement;
+                        // Store the path length when the ref is created
+                        const pathLength = el.getTotalLength();
+                        // Force a small render to apply initial styles
+                        if (pathLength > 0) {
+                          el.style.strokeDasharray = `${pathLength}`;
+                          el.style.strokeDashoffset = `${pathLength}`;
+                        }
+                      }
+                    }}
+                    d={series.pathData}
+                    fill="none"
+                    stroke={series.color}
+                    strokeWidth={strokeWidth}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                    shapeRendering="geometricPrecision"
+                    style={{
+                      strokeDasharray: pathRefs.current[originalIndex]?.getTotalLength() || 0,
+                      strokeDashoffset: ((1 - (animationProgress[originalIndex] || 0)) * 
+                        (pathRefs.current[originalIndex]?.getTotalLength() || 0))
+                    }}
+                    className={
+                      `${(focusedSeries === null && currentlyAnimatingSeries === null) || 
+                        focusedSeries === originalIndex || 
+                        currentlyAnimatingSeries === originalIndex 
+                          ? styles.visiblePath 
+                          : styles.unfocused}
+                      ${currentlyAnimatingSeries === originalIndex ? styles.animatingPath : ''}`
                     }
-                  }}
-                  d={series.pathData}
-                  fill="none"
-                  stroke={series.color}
-                  strokeWidth={strokeWidth}
-                  strokeDasharray={pathRefs.current[originalIndex]?.getTotalLength() || 0}
-                  strokeDashoffset={
-                    (1 - (animationProgress[originalIndex] || 0)) * 
-                    (pathRefs.current[originalIndex]?.getTotalLength() || 0)
-                  }
-                  className={
-                    (focusedSeries === null && currentlyAnimatingSeries === null) || 
-                    focusedSeries === originalIndex || 
-                    currentlyAnimatingSeries === originalIndex 
-                      ? styles.visiblePath 
-                      : styles.unfocused
-                  }
-                />
+                  />
+                )}
+                
+                {/* Completed path - only show after animation is done */}
+                {isCompleted && (
+                  <path
+                    key={`line-${originalIndex}-completed`}
+                    d={series.pathData}
+                    fill="none"
+                    stroke={series.color}
+                    strokeWidth={strokeWidth}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                    shapeRendering="geometricPrecision"
+                    className={
+                      (focusedSeries === null && currentlyAnimatingSeries === null) || 
+                      focusedSeries === originalIndex || 
+                      currentlyAnimatingSeries === originalIndex 
+                        ? styles.visiblePath 
+                        : styles.unfocused
+                    }
+                  />
+                )}
+                
                 {pathRefs.current[originalIndex] && (
                   <g
                     className={

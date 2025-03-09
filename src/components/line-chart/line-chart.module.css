@@ -7,7 +7,11 @@
   opacity: 1;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transition: opacity 0.3s ease-in-out;
+  will-change: stroke-dashoffset, opacity;
+}
+
+.animatingPath {
+  transition: none !important; /* Prevent transition during active animation */
 }
 
 .lineChartContainer {
