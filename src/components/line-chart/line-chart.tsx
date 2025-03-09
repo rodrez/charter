@@ -109,7 +109,10 @@ const LineChart: React.FC<LineChartProps> = ({
   }
 
   // Update the type of dataSeries
-  const updatedDataSeries = useMemo(() => dataSeries as DataSeries[], [dataSeries]);
+  const updatedDataSeries = useMemo(() => {
+    console.log('Raw dataSeries:', dataSeries);
+    return dataSeries as DataSeries[];
+  }, [dataSeries]);
 
   // Update the formatAxisValue function to use the prop values directly
   const formatAxisValue = useCallback((value: number): string => {
@@ -122,11 +125,15 @@ const LineChart: React.FC<LineChartProps> = ({
 
   // Modify the useMemo hook for pathDataArray, yMax, xMin, and xMax
   const { pathDataArray, yMin, yMax, xMin, xMax } = useMemo(() => {
-    if (!updatedDataSeries || updatedDataSeries.length === 0)
+    if (!updatedDataSeries || updatedDataSeries.length === 0) {
+      console.log('No data series available');
       return { pathDataArray: [], yMin: 0, yMax: 0, xMin: 0, xMax: 0 };
+    }
 
     const allXValues = updatedDataSeries.flatMap(series => series.data.map(point => point.x));
     const allYValues = updatedDataSeries.flatMap(series => series.data.map(point => point.y));
+    
+    console.log('Data points:', { xValues: allXValues, yValues: allYValues });
 
     let xMin = Math.min(...allXValues);
     let xMax = Math.max(...allXValues);
@@ -209,7 +216,7 @@ const LineChart: React.FC<LineChartProps> = ({
     });
   }, [xMin, xMax, width]);
 
-  const pathRefs = useRef<(SVGPathElement | null)[]>([]);
+  const pathRefs = useRef<SVGPathElement[]>([]);
   const [animationProgress, setAnimationProgress] = useState<number[]>(
     Array(updatedDataSeries.length).fill(0),
   );
@@ -220,19 +227,29 @@ const LineChart: React.FC<LineChartProps> = ({
   };
 
   const isAnimatingRef = useRef(false);
+  const isMountedRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const animateLines = async () => {
-      if (isAnimatingRef.current) return;
+      if (isAnimatingRef.current || !isMountedRef.current) return;
       isAnimatingRef.current = true;
   
-      console.log('Animation started in LineChart');
+      console.log('Animation started in LineChart. Path data array:', pathDataArray);
       setIsAnimating(true);
   
       if (staggered) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
   
         for (let i = 0; i < pathDataArray.length; i++) {
+          if (!isMountedRef.current) return;
           setCurrentlyAnimatingSeries(i);
           setFocusedSeries(i);
           useAnimationStore.setState({ focusedSeries: i });
@@ -242,9 +259,11 @@ const LineChart: React.FC<LineChartProps> = ({
           }
   
           useAnimationStore.setState({ isLineBeingAnimated: true });
-          await controls.start(i.toString());
+          if (isMountedRef.current) {
+            await controls.start(i.toString());
+          }
   
-          if (pathDataArray[i]) {
+          if (pathDataArray[i] && isMountedRef.current) {
             onAnimationCompleteRef.current?.({
               id: `series-${i}`,
               name: pathDataArray[i]?.title ?? `Series ${i + 1}`,
@@ -262,27 +281,34 @@ const LineChart: React.FC<LineChartProps> = ({
         }
       } else {
         setCurrentlyAnimatingSeries(null);
-        await controls.start("all");
+        if (isMountedRef.current) {
+          await controls.start("all");
+        }
         useAnimationStore.setState({ isLineBeingAnimated: false });
       }
   
-      setCurrentlyAnimatingSeries(null);
-      setIsAnimating(false);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      isAnimatingRef.current = false;
-      setFocusedSeries(null);
-      useAnimationStore.setState({ focusedSeries: null });
-      useAnimationStore.setState({ isLineBeingAnimated: false });
+      if (isMountedRef.current) {
+        setCurrentlyAnimatingSeries(null);
+        setIsAnimating(false);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        isAnimatingRef.current = false;
+        setFocusedSeries(null);
+        useAnimationStore.setState({ focusedSeries: null });
+        useAnimationStore.setState({ isLineBeingAnimated: false });
+      }
     };
   
-    if (pathDataArray.length > 0 && !isAnimatingRef.current) {
+    // Only run animation if component is mounted and data exists
+    if (pathDataArray.length > 0 && !isAnimatingRef.current && isMountedRef.current) {
+      console.log('Starting animation with pathDataArray:', pathDataArray.length);
       void animateLines();
+    } else {
+      console.log('Animation conditions not met:', {
+        pathsExist: pathDataArray.length > 0,
+        notAnimating: !isAnimatingRef.current,
+        isMounted: isMountedRef.current
+      });
     }
-  
-    // Remove or adjust the cleanup function
-    // return () => {
-    //   isAnimatingRef.current = false;
-    // };
   }, [pathDataArray, staggered, delay, controls, maxValueAxis]);
   
 
@@ -348,7 +374,7 @@ const LineChart: React.FC<LineChartProps> = ({
           textAnchor="middle"
           fill={axisTitleColor}
           fontSize="14"
-          transform={`rotate(-90) translate(0, -5)`}
+          transform="rotate(-90) translate(0, -5)"
         >
           {yAxisTitle}
         </text>
@@ -380,22 +406,24 @@ const LineChart: React.FC<LineChartProps> = ({
 
   const adjustLabelPosition = (labelX: number, labelY: number, boxWidth: number, boxHeight: number) => {
     const padding = 5; // Padding from chart edges
+    let adjustedLabelX = labelX;
+    let adjustedLabelY = labelY;
     
     // Adjust X position
-    if (labelX - boxWidth / 2 < padding) {
-      labelX = boxWidth / 2 + padding;
-    } else if (labelX + boxWidth / 2 > width - padding) {
-      labelX = width - boxWidth / 2 - padding;
+    if (adjustedLabelX - boxWidth / 2 < padding) {
+      adjustedLabelX = boxWidth / 2 + padding;
+    } else if (adjustedLabelX + boxWidth / 2 > width - padding) {
+      adjustedLabelX = width - boxWidth / 2 - padding;
     }
     
     // Adjust Y position
-    if (labelY - boxHeight / 2 < padding) {
-      labelY = boxHeight / 2 + padding;
-    } else if (labelY + boxHeight / 2 > height - padding) {
-      labelY = height - boxHeight / 2 - padding;
+    if (adjustedLabelY - boxHeight / 2 < padding) {
+      adjustedLabelY = boxHeight / 2 + padding;
+    } else if (adjustedLabelY + boxHeight / 2 > height - padding) {
+      adjustedLabelY = height - boxHeight / 2 - padding;
     }
     
-    return { labelX, labelY };
+    return { labelX: adjustedLabelX, labelY: adjustedLabelY };
   };
 
   const handleLegendClick = (index: number) => {
@@ -423,6 +451,7 @@ const LineChart: React.FC<LineChartProps> = ({
         preserveAspectRatio="xMidYMid meet"
         className="relative"
       >
+        <title>Line Chart Visualization</title>
         <foreignObject
           x="0"
           y="0"
@@ -436,7 +465,7 @@ const LineChart: React.FC<LineChartProps> = ({
         <Watermark text="Brand Ranks" className="absolute bottom-40 right-0 text-7xl"/>
         <Watermark text="Brand Ranks" className="absolute top-80 left-96 text-7xl"/>
         <Watermark text="Brand Ranks" className="absolute top-80 right-96 text-7xl"/> */}
-        <Watermark text="Brand Ranks" />
+        {/* <Watermark text="Brand Ranks" /> */}
         </foreignObject>
         <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
           {axisElements}
@@ -466,7 +495,7 @@ const LineChart: React.FC<LineChartProps> = ({
               <g key={originalIndex}>
                 <motion.path
                   ref={(el) => {
-                    if (el) pathRefs.current[originalIndex] = el;
+                    if (el) pathRefs.current[originalIndex] = el as SVGPathElement;
                   }}
                   d={series.pathData}
                   fill="none"
@@ -563,15 +592,19 @@ const LineChart: React.FC<LineChartProps> = ({
                         // Adjust label position to stay within chart boundaries
                         ({ labelX, labelY } = adjustLabelPosition(labelX, labelY, boxWidth, boxHeight));
 
+                        // Ensure boxWidth and boxHeight are positive
+                        const safeBoxWidth = Math.max(1, boxWidth);
+                        const safeBoxHeight = Math.max(1, boxHeight);
+
                         return (
                           <>
                             <circle cx={x} cy={y} r="4" fill={series.color} />
                             <g transform={`translate(${labelX}, ${labelY})`}>
                               <rect
-                                x={-boxWidth / 2}
-                                y={-boxHeight / 2}
-                                width={boxWidth}
-                                height={boxHeight}
+                                x={-safeBoxWidth / 2}
+                                y={-safeBoxHeight / 2}
+                                width={safeBoxWidth}
+                                height={safeBoxHeight}
                                 rx="4"
                                 ry="4"
                                 fill={series.labelBackgroundColor ?? labelBackgroundColor}
@@ -579,10 +612,10 @@ const LineChart: React.FC<LineChartProps> = ({
                               {/* Render the labelComponent if provided */}
                               {series.labelComponent ? (
                                 <foreignObject
-                                  x={-boxWidth / 2}
-                                  y={-boxHeight / 2}
-                                  width={boxWidth}
-                                  height={boxHeight}
+                                  x={-safeBoxWidth / 2}
+                                  y={-safeBoxHeight / 2}
+                                  width={safeBoxWidth}
+                                  height={safeBoxHeight}
                                 >
                                   <div
                                     className={
@@ -633,21 +666,32 @@ const LineChart: React.FC<LineChartProps> = ({
                 <rect
                   x={-width / 2 + MARGIN.left}
                   y="-25"
-                  width={width - MARGIN.left - MARGIN.right}
+                  width={Math.max(1, width - MARGIN.left - MARGIN.right)}
                   height="40"
                   fill={legendBackgroundColor}
                   rx="5"
                   ry="5"
                 />
                 {pathDataArray.map((series, index) => {
-                  const itemWidth = Math.min(150, (width - MARGIN.left - MARGIN.right) / pathDataArray.length);
-                  const totalWidth = pathDataArray.length * itemWidth;
+                  const availableWidth = Math.max(1, width - MARGIN.left - MARGIN.right);
+                  const itemWidth = Math.max(1, Math.min(150, availableWidth / Math.max(1, pathDataArray.length)));
+                  const totalWidth = Math.max(1, pathDataArray.length * itemWidth);
                   const startX = -totalWidth / 2;
+                  const seriesId = series.title ?? `series-${index}`;
                   return (
                     <g
-                      key={index}
+                      key={seriesId}
                       transform={`translate(${startX + index * itemWidth}, 0)`}
                       onClick={() => handleLegendClick(index)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          handleLegendClick(index);
+                          e.preventDefault();
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Toggle ${series.title ?? 'Untitled'} series`}
                       style={{ cursor: !isAnimating ? "pointer" : "default" }}
                       className={
                         (focusedSeries === null && !isAnimating) || 
@@ -671,7 +715,7 @@ const LineChart: React.FC<LineChartProps> = ({
                         fill={legendTextColor}
                       >
                         {(series.title ?? 'Untitled').length > 15 
-                          ? (series.title ?? 'Untitled').substring(0, 15) + '...' 
+                          ? `${(series.title ?? 'Untitled').substring(0, 15)}...`
                           : (series.title ?? 'Untitled')}
                       </text>
                     </g>
