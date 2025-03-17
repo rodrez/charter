@@ -397,7 +397,7 @@ export default function TestPage() {
   }, [isAnimationStarted, loadedData, chartState.delay, chartState.maxValueAxis]);
 
   return (
-    <div className={`mx-auto bg-pink-800 ${isExpandedBeforeAnimation || isAnimationStarted ? 'mt-0 px-0' : 'mt-8 px-4'}`}>
+    <div className={`mx-auto bg-green-400 ${isExpandedBeforeAnimation || isAnimationStarted ? 'mt-0 px-0' : 'mt-8 px-4'}`}>
       <BRBackground rows={8} columns={8} opacity={0.25} /> 
       {!isAnimationStarted && (
         <>

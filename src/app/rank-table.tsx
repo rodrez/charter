@@ -60,19 +60,23 @@ const TableRowItem = memo(({ item, index, decimalPlaces }: {
         delay: 0.1 // Small delay for a nicer entrance
       }}
       layout="position"
-      className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-100'} relative`}
+      className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-100'} h-20 relative`}
     >
       <TableCell className="text-red-600 font-semibold text-center border-b-0">
         {item.rank}
-      </TableCell>
-      <TableCell className="text-red-600 flex justify-start items-center gap-x-2 border-b-0">
         <Watermark className='text-xs absolute top-6 left-0' text='Brand Ranks' />
-        <Image width={48} height={48} src={`/images/${item.name}.png`} alt={item.name} />
-        {item.name}
-        <Watermark className='text-xs absolute bottom-6 right-12' text='Brand Ranks' />
-        <Watermark className='text-xs' text='Brand Ranks' />
+      </TableCell>
+      <TableCell className="text-red-600 flex items-center justify-start h-full gap-x-2 border-b-0 relative">
+        <div className="flex items-center gap-x-2">
+          <Image width={48} height={48} src={`/images/${item.name}.png`} alt={item.name} className="object-contain w-12 h-12" />
+          <span className='text-red-600 font-semibold'>
+            {item.name}
+          </span>
+        </div>
+        <Watermark className='text-xs absolute right-2' text='Brand Ranks' />
       </TableCell>
       <TableCell className="text-red-600 font-semibold text-left border-b-0">
+        <Watermark className='text-xs absolute bottom-6 right-12' text='Brand Ranks' />
         {formatValue(item.value, decimalPlaces)}
       </TableCell>
     </MotionTableRow>
