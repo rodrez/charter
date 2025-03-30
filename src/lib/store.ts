@@ -29,6 +29,8 @@ export interface ChartState {
   maxValueAxis: 'x' | 'y';
   sortDelay: number;
   lowerIsBetter: boolean;
+  tableValueColumn: 'x' | 'y';
+  tableNameColumn: string;
   setChartState: (state: Partial<ChartState>) => void;
 }
 
@@ -63,6 +65,8 @@ export const useChartStore = create(
       maxValueAxis: 'x',
       sortDelay: 2000,
       lowerIsBetter: false,
+      tableValueColumn: 'y',
+      tableNameColumn: 'title',
       setChartState: (state) => set(state),
     }),
     {

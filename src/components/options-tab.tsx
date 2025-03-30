@@ -40,6 +40,10 @@ interface OptionsTabProps {
   setYAxisTitle: (title: string) => void;
   maxValueAxis: 'x' | 'y';
   setMaxValueAxis: (axis: 'x' | 'y') => void;
+  tableValueColumn: string;
+  setTableValueColumn: (column: string) => void;
+  tableNameColumn: string;
+  setTableNameColumn: (column: string) => void;
 }
 
 const OptionsTab: React.FC<OptionsTabProps> = ({
@@ -79,6 +83,10 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
   setSortDelay,
   lowerIsBetter,
   setLowerIsBetter,
+  tableValueColumn,
+  setTableValueColumn,
+  tableNameColumn,
+  setTableNameColumn,
 }) => {
   return (
     <div className="space-y-8">
@@ -121,6 +129,30 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
         <h3 className="text-lg font-semibold">Table Options</h3>
         <div className="grid grid-cols-2 gap-4">
           <SwitchOption id="lower-is-better" checked={lowerIsBetter} onCheckedChange={setLowerIsBetter} label="Lower Values Are Better" />
+          <div className="flex flex-col space-y-1">
+            <Label htmlFor="table-name-column">Name Column</Label>
+            <select 
+              id="table-name-column"
+              value={tableNameColumn}
+              onChange={(e) => setTableNameColumn(e.target.value)}
+              className="border border-gray-300 rounded-md p-2"
+            >
+              <option value="title">Title</option>
+              <option value="label">Label</option>
+            </select>
+          </div>
+          <div className="flex flex-col space-y-1">
+            <Label htmlFor="table-value-column">Value Column</Label>
+            <select 
+              id="table-value-column"
+              value={tableValueColumn}
+              onChange={(e) => setTableValueColumn(e.target.value)}
+              className="border border-gray-300 rounded-md p-2"
+            >
+              <option value="y">Y Value</option>
+              <option value="x">X Value</option>
+            </select>
+          </div>
         </div>
       </div>
 

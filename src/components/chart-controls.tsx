@@ -66,6 +66,10 @@ interface ChartControlsProps {
   setSortDelay: (delay: number) => void;
   lowerIsBetter: boolean;
   setLowerIsBetter: (lower: boolean) => void;
+  tableValueColumn: string;
+  setTableValueColumn: (column: string) => void;
+  tableNameColumn: string;
+  setTableNameColumn: (column: string) => void;
 }
 
 const ChartControls: React.FC<ChartControlsProps> = ({
@@ -127,6 +131,10 @@ const ChartControls: React.FC<ChartControlsProps> = ({
   setSortDelay,
   lowerIsBetter,
   setLowerIsBetter,
+  tableValueColumn,
+  setTableValueColumn,
+  tableNameColumn,
+  setTableNameColumn,
 }) => {
   return (
     <Card className="mb-8" style={{ backgroundColor: chartBackgroundColor }}>
@@ -208,6 +216,10 @@ const ChartControls: React.FC<ChartControlsProps> = ({
               setSortDelay={setSortDelay}
               lowerIsBetter={lowerIsBetter}
               setLowerIsBetter={setLowerIsBetter}
+              tableValueColumn={tableValueColumn}
+              setTableValueColumn={setTableValueColumn}
+              tableNameColumn={tableNameColumn}
+              setTableNameColumn={setTableNameColumn}
             />
           </TabsContent>
         </Tabs>

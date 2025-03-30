@@ -97,6 +97,7 @@ const AnimatedTable: React.FC<AnimatedTableProps> = ({
   const [isAnimating, setIsAnimating] = useState(false);
   const [showTable, setShowTable] = useState(true);
   
+  console.log('data', data);
   // Improved ranking algorithm with dense ranking (1223 ranking)
   const sortAndRankData = useCallback((data: DataItem[], lowerIsBetter: boolean): DataItem[] => {
     if (data.length === 0) return [];

@@ -8,20 +8,22 @@ import type { DataSeries } from "@/lib/types/line-chart";
 import LineChart from "@/components/line-chart/line-chart";
 import Image from "next/image";
 import AnimatedTable from "./rank-table";
-import { Button } from "@/components/ui/button"; 
+import { Button } from "@/components/ui/button";
 import { type ChartState, useAnimationStore, useChartStore } from '@/lib/store';
 import { BRBackground } from "@/components/br";
+import { ensureTableValueColumn } from "@/lib/utils";
 
 // Custom component that renders an image
-const ImageLabelComponent = ({ src }: { src: string}) => (
+const ImageLabelComponent = ({ src }: { src: string }) => (
   <div className="flex items-center justify-center" style={{ width: '100%', height: '100%' }}>
-      <Image
-        src={src}
-        alt="Label"
-        width={80}
-        height={80}
-        style={{ objectFit: 'contain' }}
-      />
+    <Image
+      src={src}
+      alt="Label"
+      width={100}
+      height={100}
+      sizes="100px"
+      style={{ width: 'auto', height: 'auto', maxWidth: '100px', maxHeight: '100px', objectFit: 'contain' }}
+    />
   </div>
 );
 
@@ -85,29 +87,29 @@ export default function TestPage() {
             const parsedData = result.data as string[][];
             setRawData(parsedData);
             const series: DataSeries[] = [];
-            
+
             if (parsedData.length > 1) {
               const headers = parsedData[0];
               const startIndex = chartState.useFirstColumnAsX ? 1 : 0;
               const xAxisLabels = chartState.useFirstColumnAsX ? parsedData.slice(1).map(row => row[0]) : null;
-              
+
               for (let i = startIndex; i < (headers?.length ?? 0); i++) {
                 const dataPoints = parsedData.slice(1).map((row: string[], rowIndex: number) => {
                   if (!row?.length) return null;
 
                   const x = chartState.useFirstColumnAsX ? Number.parseFloat(row[0] ?? '') : rowIndex;
                   const y = Number.parseFloat(row[i] ?? '');
-                  return { 
-                    x: Number.isNaN(x) ? rowIndex : x, 
+                  return {
+                    x: Number.isNaN(x) ? rowIndex : x,
                     y: Number.isNaN(y) ?? y === 0 ? null : y
                   };
                 }).filter((point): point is { x: number; y: number } => point?.y !== null);
-                
+
                 if (dataPoints.length > 0) {
                   series.push({
                     title: headers?.[i] ?? '',
                     label: headers?.[i] ?? '',
-                    labelComponent: <ImageLabelComponent src={`/images/${headers?.[i] ?? ''}.png`}/>,
+                    labelComponent: <ImageLabelComponent src={`/images/${headers?.[i] ?? ''}.png`} />,
                     color: chartState.dataLineColors[(i - startIndex) % chartState.dataLineColors.length],
                     data: dataPoints,
                     xAxisLabels: xAxisLabels,
@@ -117,7 +119,7 @@ export default function TestPage() {
                 }
               }
             }
-            
+
             setLoadedData(series.filter(s => s.data.length > 0));
             setIsDataLoaded(true);
           },
@@ -144,26 +146,35 @@ export default function TestPage() {
 
   const handleStartAnimation = useCallback(() => {
     console.log('loadedData', loadedData);
-    
+
     // Reset animation state first
     setIsAnimationStarted(false);
     setData([]);
     setCompletedAnimations(new Set());
-    
+
     // Handle table data differently based on the active view
     if (activeView === 'table') {
       // For table-only view, initialize with all items
       if (loadedData.length > 0) {
-        const tableItems = loadedData.map((series, index) => {
-          const maxValue = Math.max(...series.data.map(point => point.y));
+        console.log('loadedData', loadedData);
+        const tableItems = loadedData.map((series) => {
+          // Use the configured column for value
+          const maxValue = chartState.tableValueColumn === 'y' 
+            ? Math.max(...series.data.map(point => point.y))
+            : Math.max(...series.data.map(point => point.x));
+          
+          console.log('maxValue', maxValue);
           return {
-            id: `series-${index}`,
-            name: typeof series.label === 'string' ? series.label : `Series ${index + 1}`,
+            id: series.title,
+            // Use the configured column for name
+            name: chartState.tableNameColumn === 'title' 
+              ? series.title
+              : (typeof series.label === 'string' ? series.label : series.title),
             value: maxValue
           };
         });
         setTableData(tableItems);
-        
+
         // Mark all series as completed for table-only view
         setCompletedAnimations(new Set(tableItems.map(item => item.id)));
       } else {
@@ -174,11 +185,17 @@ export default function TestPage() {
       if (loadedData.length > 0) {
         const firstSeries = loadedData[0];
         if (firstSeries && firstSeries.data.length > 0) {
-          const maxValue = Math.max(...firstSeries.data.map(point => point.y));
-          
+          // Use the configured column for value
+          const maxValue = chartState.tableValueColumn === 'y'
+            ? Math.max(...firstSeries.data.map(point => point.y))
+            : Math.max(...firstSeries.data.map(point => point.x));
+
           setTableData([{
-            id: "series-0",
-            name: typeof firstSeries.label === 'string' ? firstSeries.label : "Series 1",
+            id: firstSeries.title,
+            // Use the configured column for name
+            name: chartState.tableNameColumn === 'title'
+              ? firstSeries.title
+              : (typeof firstSeries.label === 'string' ? firstSeries.label : firstSeries.title),
             value: maxValue
           }]);
         } else {
@@ -188,7 +205,7 @@ export default function TestPage() {
         setTableData([]);
       }
     }
-    
+
     // Use requestAnimationFrame to ensure DOM has updated before starting animation
     requestAnimationFrame(() => {
       // Small timeout to ensure clean animation start
@@ -197,28 +214,37 @@ export default function TestPage() {
         setData(loadedData);
       }, 50);
     });
-  }, [loadedData, activeView]);
+  }, [loadedData, activeView, chartState.tableValueColumn, chartState.tableNameColumn]);
 
   const handleRestartAnimation = useCallback(() => {
     // Reset animation state
     setIsAnimationStarted(false);
     setData([]);
     setCompletedAnimations(new Set());
-    
+
     // Handle table data differently based on the active view
     if (activeView === 'table') {
       // For table-only view, initialize with all items
       if (loadedData.length > 0) {
-        const tableItems = loadedData.map((series, index) => {
-          const maxValue = Math.max(...series.data.map(point => point.y));
+        console.log('loadedData', loadedData);
+        const tableItems = loadedData.map((series) => {
+          // Use the configured column for value
+          const maxValue = chartState.tableValueColumn === 'y'
+            ? Math.max(...series.data.map(point => point.y))
+            : Math.max(...series.data.map(point => point.x));
+            
+          console.log('maxValue', maxValue);
           return {
-            id: `series-${index}`,
-            name: typeof series.label === 'string' ? series.label : `Series ${index + 1}`,
+            id: series.title,
+            // Use the configured column for name
+            name: chartState.tableNameColumn === 'title'
+              ? series.title
+              : (typeof series.label === 'string' ? series.label : series.title),
             value: maxValue
           };
         });
         setTableData(tableItems);
-        
+
         // Mark all series as completed for table-only view
         setCompletedAnimations(new Set(tableItems.map(item => item.id)));
       } else {
@@ -227,16 +253,22 @@ export default function TestPage() {
     } else {
       // For chart or both views, reset table data
       setTableData([]);
-      
+
       // Initialize with just the first item if available
       if (loadedData.length > 0) {
         const firstSeries = loadedData[0];
         if (firstSeries && firstSeries.data.length > 0) {
-          const maxValue = Math.max(...firstSeries.data.map(point => point.y));
-          
+          // Use the configured column for value
+          const maxValue = chartState.tableValueColumn === 'y'
+            ? Math.max(...firstSeries.data.map(point => point.y))
+            : Math.max(...firstSeries.data.map(point => point.x));
+
           setTableData([{
-            id: "series-0",
-            name: typeof firstSeries.label === 'string' ? firstSeries.label : "Series 1",
+            id: firstSeries.title,
+            // Use the configured column for name
+            name: chartState.tableNameColumn === 'title'
+              ? firstSeries.title
+              : (typeof firstSeries.label === 'string' ? firstSeries.label : firstSeries.title),
             value: maxValue
           }]);
         }
@@ -253,37 +285,35 @@ export default function TestPage() {
         }, 50);
       });
     });
-  }, [loadedData, activeView]);
+  }, [loadedData, activeView, chartState.tableValueColumn, chartState.tableNameColumn]);
 
   const handleAnimationComplete = useCallback((maxValue: { id: string; name: string; value: number }) => {
     console.log('Animation completed for:', maxValue);
-    
+
     // Update the completedAnimations set first
     setCompletedAnimations(prev => {
       const newSet = new Set(prev);
       newSet.add(maxValue.id);
       return newSet;
     });
-    
-    // For the first item (series-0), update its value if it's already in the table
-    // For other items, add them to the table if they don't exist
+
+    // Add the item to the table if it doesn't exist yet
     const animationDelay = 500; // 0.5 seconds delay
-    
+
     setTimeout(() => {
       setTableData(prevData => {
-        // If it's the first item and it already exists, update its value
-        if (maxValue.id === "series-0") {
+        // Check if this ID already exists in the table
+        const existingItemIndex = prevData.findIndex(item => item.id === maxValue.id);
+        
+        if (existingItemIndex >= 0) {
+          // Update existing item
           return prevData.map(item => 
-            item.id === "series-0" ? { ...item, value: maxValue.value } : item
+            item.id === maxValue.id ? { ...item, value: maxValue.value } : item
           );
         }
         
-        // For other items, only add if they don't already exist
-        if (!prevData.some(item => item.id === maxValue.id)) {
-          return [...prevData, maxValue];
-        }
-        
-        return prevData;
+        // Add new item if it doesn't exist
+        return [...prevData, maxValue];
       });
     }, animationDelay);
   }, []);
@@ -311,9 +341,9 @@ export default function TestPage() {
 
   const toggleView = useCallback(() => {
     setActiveView(current => {
-      const nextView = current === 'chart' ? 'both' : 
-                       current === 'both' ? 'table' : 'chart';
-      
+      const nextView = current === 'chart' ? 'both' :
+        current === 'both' ? 'table' : 'chart';
+
       // If switching to table-only view, make sure all items are shown
       if (nextView === 'table' && isAnimationStarted) {
         // Initialize table with all items
@@ -327,12 +357,12 @@ export default function TestPage() {
             };
           });
           setTableData(tableItems);
-          
+
           // Mark all series as completed for table-only view
           setCompletedAnimations(new Set(tableItems.map(item => item.id)));
         }
       }
-      
+
       return nextView;
     });
   }, [loadedData, isAnimationStarted]);
@@ -341,12 +371,12 @@ export default function TestPage() {
     const jsonString = JSON.stringify(chartState, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    
+
     const a = document.createElement('a');
     a.href = url;
     a.download = 'chart_state.json';
     a.click();
-    
+
     URL.revokeObjectURL(url);
   };
 
@@ -377,15 +407,22 @@ export default function TestPage() {
       setTimeout(() => {
         // Process and add entries with delay
         loadedData.forEach((series, index) => {
-          // Find the maximum y value in the series
-          // We use the maxValue axis to determine the best value
-          const maxValue = Math.max(...series.data.map(point => chartState.maxValueAxis === 'y' ? point.y : point.x));
+          // Get value based on configured column
+          const maxValue = chartState.tableValueColumn === 'y'
+            ? Math.max(...series.data.map(point => point.y))
+            : Math.max(...series.data.map(point => point.x));
+          
+          // Get name based on configured column
+          const name = chartState.tableNameColumn === 'title'
+            ? series.title
+            : (typeof series.label === 'string' ? series.label : series.title);
+            
           const entry = {
             id: series.title,
-            name: series.title,
+            name: name,
             value: maxValue
           };
-          
+
           // Use the same delay as the chart animation
           setTimeout(() => {
             setTableData(prev => [...prev, entry]);
@@ -393,12 +430,11 @@ export default function TestPage() {
         });
       }, 1000);
     }
-    // The animation is working well without chartState.maxValueAxis
-  }, [isAnimationStarted, loadedData, chartState.delay, chartState.maxValueAxis]);
+  }, [isAnimationStarted, loadedData, chartState.delay, chartState.tableValueColumn, chartState.tableNameColumn]);
 
   return (
     <div className={`mx-auto bg-green-400 ${isExpandedBeforeAnimation || isAnimationStarted ? 'mt-0 px-0' : 'mt-8 px-4'}`}>
-      <BRBackground rows={8} columns={8} opacity={0.25} /> 
+      <BRBackground rows={8} columns={8} opacity={0.25} />
       {!isAnimationStarted && (
         <>
           <ChartControls
@@ -460,6 +496,10 @@ export default function TestPage() {
             setSortDelay={(delay) => chartState.setChartState({ sortDelay: delay })}
             lowerIsBetter={chartState.lowerIsBetter}
             setLowerIsBetter={(lower) => chartState.setChartState({ lowerIsBetter: lower })}
+            tableValueColumn={chartState.tableValueColumn}
+            setTableValueColumn={(column) => chartState.setChartState({ tableValueColumn: column })}
+            tableNameColumn={chartState.tableNameColumn}
+            setTableNameColumn={(column) => chartState.setChartState({ tableNameColumn: column })}
           />
 
           {isDataLoaded && (
@@ -476,7 +516,7 @@ export default function TestPage() {
       )}
 
       {data.length > 0 && data.some(series => series.data.length > 0) ? (
-        <div 
+        <div
           className={`flex flex-col ${isExpandedBeforeAnimation || isAnimationStarted ? 'h-screen w-[99%] mx-auto my-1' : ''}`}
           style={{ minHeight: '400px' }} // Ensure a minimum height
         >
@@ -497,9 +537,9 @@ export default function TestPage() {
           {isAnimationStarted && (
             <div className="flex justify-end space-x-2 mb-2">
               <Button onClick={toggleView}>
-                {activeView === 'chart' ? 'Show Both' : 
-                 activeView === 'both' ? 'Show Table Only' : 
-                 'Show Chart Only'}
+                {activeView === 'chart' ? 'Show Both' :
+                  activeView === 'both' ? 'Show Table Only' :
+                    'Show Chart Only'}
               </Button>
               <Button onClick={handleRestartAnimation}>
                 Restart Animation
@@ -508,14 +548,14 @@ export default function TestPage() {
           )}
           <div className="flex h-[calc(100%-40px)] rounded-lg overflow-hidden">
             {activeView !== 'table' && (
-              <div 
+              <div
                 ref={chartContainerRef}
                 className={`${activeView === 'both' ? 'w-[75%]' : 'w-full'} h-full`}
                 style={{ minWidth: '200px', minHeight: '200px' }} // Ensure minimum dimensions
               >
                 <RenderCounter />
                 <LineChart
-                  aspectRatio={activeView === 'both' ? 16/9 : 21/9} // Wider aspect ratio when full screen
+                  aspectRatio={activeView === 'both' ? 16 / 9 : 21 / 9} // Wider aspect ratio when full screen
                   maxValueAxis={chartState.maxValueAxis}
                   minHeight={activeView === 'both' ? '84%' : '82%'} // Taller when full screen
                   dataSeries={data}
@@ -543,18 +583,16 @@ export default function TestPage() {
                   xAxisTitle={chartState.xAxisTitle}
                   yAxisTitle={chartState.yAxisTitle}
                   axisTitleColor={chartState.axisTitleColor}
-                  // isExpanded={isExpandedBeforeAnimation || isAnimationStarted}
                 />
               </div>
             )}
-            
+
             {isAnimationStarted && activeView !== 'chart' && (
-              <div className={`${
-                activeView === 'both' ? 'w-[25%]' : 'w-[50%]'
-              } h-full overflow-auto mx-auto mt-4 p-3`}>
-                <AnimatedTable 
-                  data={tableData} 
-                  lowerIsBetter={chartState.lowerIsBetter} 
+              <div className={`${activeView === 'both' ? 'w-[25%]' : 'w-[50%]'
+                } h-full overflow-auto mx-auto px-3`}>
+                <AnimatedTable
+                  data={tableData}
+                  lowerIsBetter={chartState.lowerIsBetter}
                   decimalPlaces={chartState.decimalPlaces}
                   completedIds={Array.from(completedAnimations)}
                   chartAnimationsComplete={activeView === 'table'} // Force show all items in table-only view
