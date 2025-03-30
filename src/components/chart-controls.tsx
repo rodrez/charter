@@ -5,7 +5,7 @@ import DataTab from './data-tab';
 import PreviewTab from './preview-tab';
 import ColorsTab from './colors-tab';
 import OptionsTab from './options-tab';
-import type { DataSeries } from '@/lib/types/line-chart';
+import type { DataSeries, TableValueColumn } from '@/lib/types/line-chart';
 
 interface ChartControlsProps {
   importFromJson: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -66,10 +66,15 @@ interface ChartControlsProps {
   setSortDelay: (delay: number) => void;
   lowerIsBetter: boolean;
   setLowerIsBetter: (lower: boolean) => void;
-  tableValueColumn: string;
-  setTableValueColumn: (column: string) => void;
+  tableValueColumn: TableValueColumn;
+  setTableValueColumn: (column: TableValueColumn) => void;
   tableNameColumn: string;
   setTableNameColumn: (column: string) => void;
+  isAnimating: boolean;
+  speed: number;
+  setSpeed: (speed: number) => void;
+  handleStartAnimation: () => void;
+  handleRestartAnimation: () => void;
 }
 
 const ChartControls: React.FC<ChartControlsProps> = ({
@@ -135,6 +140,11 @@ const ChartControls: React.FC<ChartControlsProps> = ({
   setTableValueColumn,
   tableNameColumn,
   setTableNameColumn,
+  isAnimating,
+  speed,
+  setSpeed,
+  handleStartAnimation,
+  handleRestartAnimation,
 }) => {
   return (
     <Card className="mb-8" style={{ backgroundColor: chartBackgroundColor }}>
@@ -220,6 +230,11 @@ const ChartControls: React.FC<ChartControlsProps> = ({
               setTableValueColumn={setTableValueColumn}
               tableNameColumn={tableNameColumn}
               setTableNameColumn={setTableNameColumn}
+              isAnimating={isAnimating}
+              speed={speed}
+              setSpeed={setSpeed}
+              handleStartAnimation={handleStartAnimation}
+              handleRestartAnimation={handleRestartAnimation}
             />
           </TabsContent>
         </Tabs>

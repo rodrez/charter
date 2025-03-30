@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import type { ChangeEvent } from "react";
 import Papa from "papaparse";
 import ChartControls from "@/components/chart-controls";
-import type { DataSeries } from "@/lib/types/line-chart";
+import type { DataSeries, TableValueColumn } from "@/lib/types/line-chart";
 import LineChart from "@/components/line-chart/line-chart";
 import Image from "next/image";
 import AnimatedTable from "./rank-table";
@@ -12,6 +12,9 @@ import { Button } from "@/components/ui/button";
 import { type ChartState, useAnimationStore, useChartStore } from '@/lib/store';
 import { BRBackground } from "@/components/br";
 import { ensureTableValueColumn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 // Custom component that renders an image
 const ImageLabelComponent = ({ src }: { src: string }) => (
@@ -158,7 +161,7 @@ export default function TestPage() {
       if (loadedData.length > 0) {
         console.log('loadedData', loadedData);
         const tableItems = loadedData.map((series) => {
-          // Use the configured column for value
+          // Use the configured column for value - store is already sanitized
           const maxValue = chartState.tableValueColumn === 'y' 
             ? Math.max(...series.data.map(point => point.y))
             : Math.max(...series.data.map(point => point.x));
@@ -185,7 +188,7 @@ export default function TestPage() {
       if (loadedData.length > 0) {
         const firstSeries = loadedData[0];
         if (firstSeries && firstSeries.data.length > 0) {
-          // Use the configured column for value
+          // Use the configured column for value - store is already sanitized
           const maxValue = chartState.tableValueColumn === 'y'
             ? Math.max(...firstSeries.data.map(point => point.y))
             : Math.max(...firstSeries.data.map(point => point.x));
@@ -228,7 +231,7 @@ export default function TestPage() {
       if (loadedData.length > 0) {
         console.log('loadedData', loadedData);
         const tableItems = loadedData.map((series) => {
-          // Use the configured column for value
+          // Use the configured column for value - store is already sanitized
           const maxValue = chartState.tableValueColumn === 'y'
             ? Math.max(...series.data.map(point => point.y))
             : Math.max(...series.data.map(point => point.x));
@@ -258,7 +261,7 @@ export default function TestPage() {
       if (loadedData.length > 0) {
         const firstSeries = loadedData[0];
         if (firstSeries && firstSeries.data.length > 0) {
-          // Use the configured column for value
+          // Use the configured column for value - store is already sanitized
           const maxValue = chartState.tableValueColumn === 'y'
             ? Math.max(...firstSeries.data.map(point => point.y))
             : Math.max(...firstSeries.data.map(point => point.x));
@@ -297,6 +300,13 @@ export default function TestPage() {
       return newSet;
     });
 
+    // Find the corresponding data series
+    const seriesIndex = data.findIndex(series => series.title === maxValue.id);
+    if (seriesIndex === -1) return;
+    
+    const series = data[seriesIndex];
+    if (!series) return; // Safety check
+    
     // Add the item to the table if it doesn't exist yet
     const animationDelay = 500; // 0.5 seconds delay
 
@@ -305,18 +315,29 @@ export default function TestPage() {
         // Check if this ID already exists in the table
         const existingItemIndex = prevData.findIndex(item => item.id === maxValue.id);
         
+        // Calculate the correct value based on tableValueColumn
+        const tableValueColumn = chartState.tableValueColumn;
+        const correctValue = tableValueColumn === 'y'
+          ? Math.max(...series.data.map(point => point.y))
+          : Math.max(...series.data.map(point => point.x));
+          
+        // Get the correct name based on tableNameColumn
+        const name = chartState.tableNameColumn === 'title'
+          ? series.title
+          : (typeof series.label === 'string' ? series.label : series.title);
+        
         if (existingItemIndex >= 0) {
-          // Update existing item
+          // Update existing item with correct value
           return prevData.map(item => 
-            item.id === maxValue.id ? { ...item, value: maxValue.value } : item
+            item.id === maxValue.id ? { ...item, name, value: correctValue } : item
           );
         }
         
-        // Add new item if it doesn't exist
-        return [...prevData, maxValue];
+        // Add new item with correct value
+        return [...prevData, { id: maxValue.id, name, value: correctValue }];
       });
     }, animationDelay);
-  }, []);
+  }, [data, chartState.tableValueColumn, chartState.tableNameColumn]);
 
   useEffect(() => {
     if (isAnimationStarted) {
@@ -340,32 +361,42 @@ export default function TestPage() {
   }, []);
 
   const toggleView = useCallback(() => {
-    setActiveView(current => {
-      const nextView = current === 'chart' ? 'both' :
-        current === 'both' ? 'table' : 'chart';
+    const nextView = activeView === 'chart' ? 'both' : 
+                   activeView === 'both' ? 'table' : 'chart';
+    
+    setActiveView(nextView);
+    
+    // If switching to table-only or both view, make sure all items are shown correctly
+    if ((nextView === 'table' || nextView === 'both') && isAnimationStarted) {
+      // Initialize table with all items
+      if (data.length > 0) {
+        const tableValueColumn = chartState.tableValueColumn;
+        
+        const tableItems = data.map((series) => {
+          // Use the configured column for value
+          const maxValue = tableValueColumn === 'y'
+            ? Math.max(...series.data.map(point => point.y))
+            : Math.max(...series.data.map(point => point.x));
+          
+          return {
+            id: series.title,
+            // Use the configured column for name
+            name: chartState.tableNameColumn === 'title'
+              ? series.title
+              : (typeof series.label === 'string' ? series.label : series.title),
+            value: maxValue
+          };
+        });
+        
+        setTableData(tableItems);
 
-      // If switching to table-only view, make sure all items are shown
-      if (nextView === 'table' && isAnimationStarted) {
-        // Initialize table with all items
-        if (loadedData.length > 0) {
-          const tableItems = loadedData.map((series, index) => {
-            const maxValue = Math.max(...series.data.map(point => point.y));
-            return {
-              id: `series-${index}`,
-              name: typeof series.label === 'string' ? series.label : `Series ${index + 1}`,
-              value: maxValue
-            };
-          });
-          setTableData(tableItems);
-
-          // Mark all series as completed for table-only view
+        // Mark all series as completed for table-only view
+        if (nextView === 'table') {
           setCompletedAnimations(new Set(tableItems.map(item => item.id)));
         }
       }
-
-      return nextView;
-    });
-  }, [loadedData, isAnimationStarted]);
+    }
+  }, [activeView, data, isAnimationStarted, chartState.tableValueColumn, chartState.tableNameColumn]);
 
   const exportToJson = () => {
     const jsonString = JSON.stringify(chartState, null, 2);
@@ -407,8 +438,11 @@ export default function TestPage() {
       setTimeout(() => {
         // Process and add entries with delay
         loadedData.forEach((series, index) => {
-          // Get value based on configured column
-          const maxValue = chartState.tableValueColumn === 'y'
+          if (!series || !series.data || series.data.length === 0) return;
+          
+          // Get value based on configured column - store is already sanitized
+          const tableValueColumn = chartState.tableValueColumn;
+          const maxValue = tableValueColumn === 'y'
             ? Math.max(...series.data.map(point => point.y))
             : Math.max(...series.data.map(point => point.x));
           
@@ -425,7 +459,21 @@ export default function TestPage() {
 
           // Use the same delay as the chart animation
           setTimeout(() => {
-            setTableData(prev => [...prev, entry]);
+            // When adding to the table, recompute the value to ensure consistency
+            setTableData(prev => {
+              // Check if this ID already exists in the table (it shouldn't, but just to be safe)
+              const existingItemIndex = prev.findIndex(item => item.id === series.title);
+              
+              if (existingItemIndex >= 0) {
+                // Update the existing item with correct value
+                return prev.map(item => 
+                  item.id === series.title ? entry : item
+                );
+              }
+              
+              // Add new item with correct value
+              return [...prev, entry];
+            });
           }, index * (chartState.delay * 1000)); // Convert delay to milliseconds
         });
       }, 1000);
@@ -496,10 +544,15 @@ export default function TestPage() {
             setSortDelay={(delay) => chartState.setChartState({ sortDelay: delay })}
             lowerIsBetter={chartState.lowerIsBetter}
             setLowerIsBetter={(lower) => chartState.setChartState({ lowerIsBetter: lower })}
-            tableValueColumn={chartState.tableValueColumn}
+            tableValueColumn={chartState.tableValueColumn as 'x' | 'y'}
             setTableValueColumn={(column) => chartState.setChartState({ tableValueColumn: column })}
             tableNameColumn={chartState.tableNameColumn}
             setTableNameColumn={(column) => chartState.setChartState({ tableNameColumn: column })}
+            isAnimating={isAnimationStarted}
+            speed={chartState.delay}
+            setSpeed={(speed) => chartState.setChartState({ delay: speed })}
+            handleStartAnimation={handleStartAnimation}
+            handleRestartAnimation={handleRestartAnimation}
           />
 
           {isDataLoaded && (

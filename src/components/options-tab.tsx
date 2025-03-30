@@ -2,6 +2,7 @@ import React from 'react';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from './ui/input';
+import type { TableValueColumn } from '@/lib/types/line-chart';
 
 interface OptionsTabProps {
   showLegend: boolean;
@@ -40,10 +41,15 @@ interface OptionsTabProps {
   setYAxisTitle: (title: string) => void;
   maxValueAxis: 'x' | 'y';
   setMaxValueAxis: (axis: 'x' | 'y') => void;
-  tableValueColumn: string;
-  setTableValueColumn: (column: string) => void;
+  tableValueColumn: TableValueColumn;
+  setTableValueColumn: (column: TableValueColumn) => void;
   tableNameColumn: string;
   setTableNameColumn: (column: string) => void;
+  isAnimating?: boolean;
+  speed?: number;
+  setSpeed?: (speed: number) => void;
+  handleStartAnimation?: () => void;
+  handleRestartAnimation?: () => void;
 }
 
 const OptionsTab: React.FC<OptionsTabProps> = ({
@@ -87,6 +93,11 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
   setTableValueColumn,
   tableNameColumn,
   setTableNameColumn,
+  isAnimating,
+  speed,
+  setSpeed,
+  handleStartAnimation,
+  handleRestartAnimation,
 }) => {
   return (
     <div className="space-y-8">
@@ -130,7 +141,7 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
         <div className="grid grid-cols-2 gap-4">
           <SwitchOption id="lower-is-better" checked={lowerIsBetter} onCheckedChange={setLowerIsBetter} label="Lower Values Are Better" />
           <div className="flex flex-col space-y-1">
-            <Label htmlFor="table-name-column">Name Column</Label>
+            <Label htmlFor="table-name-column">Table Name Column</Label>
             <select 
               id="table-name-column"
               value={tableNameColumn}
@@ -142,11 +153,11 @@ const OptionsTab: React.FC<OptionsTabProps> = ({
             </select>
           </div>
           <div className="flex flex-col space-y-1">
-            <Label htmlFor="table-value-column">Value Column</Label>
+            <Label htmlFor="table-value-column">Table Value Column</Label>
             <select 
               id="table-value-column"
               value={tableValueColumn}
-              onChange={(e) => setTableValueColumn(e.target.value)}
+              onChange={(e) => setTableValueColumn(e.target.value as TableValueColumn)}
               className="border border-gray-300 rounded-md p-2"
             >
               <option value="y">Y Value</option>

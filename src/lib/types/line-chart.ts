@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
 
+// Shared type for table value column
+export type TableValueColumn = 'x' | 'y';
+
 export interface DataSeries {
   title: string;
   color: string;

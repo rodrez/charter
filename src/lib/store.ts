@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { ensureTableValueColumn } from './utils';
+import type { TableValueColumn } from './types/line-chart';
 
 export interface ChartState {
   chartBackgroundColor: string;
@@ -29,7 +31,7 @@ export interface ChartState {
   maxValueAxis: 'x' | 'y';
   sortDelay: number;
   lowerIsBetter: boolean;
-  tableValueColumn: 'x' | 'y';
+  tableValueColumn: TableValueColumn;
   tableNameColumn: string;
   setChartState: (state: Partial<ChartState>) => void;
 }
@@ -67,7 +69,13 @@ export const useChartStore = create(
       lowerIsBetter: false,
       tableValueColumn: 'y',
       tableNameColumn: 'title',
-      setChartState: (state) => set(state),
+      setChartState: (state) => {
+        // Sanitize tableValueColumn to ensure it's always 'x' or 'y'
+        if (state.tableValueColumn && !['x', 'y'].includes(state.tableValueColumn)) {
+          state.tableValueColumn = 'y';
+        }
+        set(state);
+      },
     }),
     {
       name: 'chart-storage',
