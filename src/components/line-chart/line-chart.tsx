@@ -746,7 +746,7 @@ const LineChart: FC<LineChartProps> = ({
         <Watermark text="Brand Ranks" className="absolute bottom-40 right-0 text-7xl"/>
         <Watermark text="Brand Ranks" className="absolute top-80 left-96 text-7xl"/>
         <Watermark text="Brand Ranks" className="absolute top-80 right-96 text-7xl"/> */}
-          <Watermark text="Brand Ranks" />
+        <Watermark text="Brand Ranks" />
         </foreignObject>
         {/* <Watermark className='text-5xl' text='Brand Ranks' opacity={0.1} color='text-gray-700' /> */}
         <g transform={`translate(${MARGIN.left}, ${MARGIN.top})`}>

@@ -62,21 +62,21 @@ const TableRowItem = memo(({ item, index, decimalPlaces }: {
       layout="position"
       className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-100'} h-20 relative`}
     >
-      <TableCell className="text-red-600 font-semibold text-center border-b-0">
+      <TableCell className="text-red-600 font-semibold text-3xl text-center border-b-0 relative">
         {item.rank}
-        <Watermark className='text-xs absolute top-6 left-0' text='Brand Ranks' />
+        <Watermark className='text-xs absolute top-6 left-0' text='Brand Ranks' opacity={0.3} color='text-slate-400' />
       </TableCell>
-      <TableCell className="text-red-600 flex items-center justify-start h-full gap-x-2 border-b-0 relative">
+      <TableCell className="text-red-600 flex items-center justify-start h-full gap-x-2 border-b-0 relative text-3xl">
         <div className="flex items-center gap-x-2">
           <Image width={48} height={48} src={`/images/${item.name}.png`} alt={item.name} className="object-contain w-12 h-12" />
           <span className='text-red-600 font-semibold'>
             {item.name}
           </span>
         </div>
-        <Watermark className='text-xs absolute right-2' text='Brand Ranks' />
+        <Watermark className='text-xs absolute right-2' text='Brand Ranks' opacity={0.3} color='text-slate-400' />
       </TableCell>
-      <TableCell className="text-red-600 font-semibold text-left border-b-0">
-        <Watermark className='text-xs absolute bottom-6 right-12' text='Brand Ranks' />
+      <TableCell className="text-red-600 font-semibold text-left border-b-0 relative text-3xl">
+        <Watermark className='text-xs absolute bottom-6 right-12' text='Brand Ranks' opacity={0.3} color='text-slate-400' />
         {formatValue(item.value, decimalPlaces)}
       </TableCell>
     </MotionTableRow>
@@ -159,7 +159,12 @@ const AnimatedTable: React.FC<AnimatedTableProps> = ({
     
     // Update animation state based on whether we have data
     const hasData = filteredData.length > 0;
-    setShowTable(hasData);
+    
+    // Always keep showTable as true once we have data
+    if (hasData) {
+      setShowTable(true);
+    }
+    
     setIsAnimating(hasData);
     
     const ranked = sortAndRankData(filteredData, lowerIsBetter);
@@ -168,7 +173,12 @@ const AnimatedTable: React.FC<AnimatedTableProps> = ({
 
   return (
     <div className="flex justify-center relative shadow-lg rounded-lg overflow-hidden bg-white">
-      <Table className="w-full rounded-lg overflow-hidden table-fixed">
+      {/* Add global watermarks that will always be visible regardless of table row animations */}
+      {/* <div className="absolute inset-0 w-full h-full z-0 pointer-events-none overflow-hidden">
+        <Watermark text='Brand Ranks' color='text-gray-400' opacity={0.15} />
+      </div> */}
+      
+      <Table className="w-full rounded-lg overflow-hidden table-fixed relative z-10">
         <TableHeader>
           <TableRow>
             <TableHead className="w-[15%] bg-red-600 text-white font-semibold text-center">Rank</TableHead>

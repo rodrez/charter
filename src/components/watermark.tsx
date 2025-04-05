@@ -14,7 +14,7 @@ export default function Watermark({
   className = ''
 }: WatermarkProps) {
   return (
-    <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none" style={{ zIndex: -1 }}>
+    <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none" style={{ zIndex: 1 }}>
       <div 
         className={`text-9xl font-bold transform -rotate-45 ${color} select-none ${className}`}
         style={{ opacity }}
